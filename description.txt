@@ -1,0 +1,2 @@
+Easily create arbitrarily curved tunnels.
+Useful for advtrains mod. Intended for creative mode--can do great damage if misused. Requires "tunneling" privilege to use (/grant <name> tunneling).
