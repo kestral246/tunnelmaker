@@ -12,13 +12,15 @@ Features
 --------
 - Creates tunnel segments in any of sixteen possible directions with one click.
 - Direction of digging based on direction player is pointing.
-- Provides changing icons to help player align in proper direction.
+- Provides changing icon to help player align in proper direction.
 - Uses privileges, requires "tunneling" privilege to be able to use.
 - Checks protection, and doesn't dig any protected nodes.
 - Reference point is at ground level: possible to increase or decrease the grade by changing the height of the reference node.
-- Fills in holes in flooring with cobblestone.
+- Fills in holes in flooring with stone.
 - Adds torches to ceiling if ceiling is stone or desert_stone.
 - Works outside of tunnels to clear ground and provide cuts and fills.
+- New:  Increased tunnel width to 5 blocks and height to 5 blocks.
+- New:  Now adds cobblestone reference blocks in floor, to help align advtrains track.
 
 
 How to use

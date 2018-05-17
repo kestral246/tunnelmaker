@@ -2,7 +2,8 @@
 -- Another tunnel digging mod for minetest.
 -- by David G (kestral246@gmail.com)
 
--- Version 0.5.0
+-- Version 0.6.0
+-- Increased width and height of tunnel created.
 
 -- based on compassgps 2.7 and compass 0.5
 
@@ -86,117 +87,205 @@ local images = {
         "tunnelmaker_14.png",
         "tunnelmaker_15.png",
 }
+-- add reference block to point to next target location and to aid laying track
+-- currently using default:cobble
+local add_ref = function(x, z, user, pointed_thing)
+    local pos = vector.add(pointed_thing.under, {x=x, y=0, z=z})
+    if not minetest.is_protected(pos, user) then
+        minetest.set_node(pos, {name = "default:cobble"})
+    end
+end
+
+-- delete single node, but not torches
+local dig_single = function(x, y, z, user, pointed_thing)
+    local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+    if minetest.get_node(pos).name ~= "default:torch_ceiling" and not minetest.is_protected(pos, user) then
+        minetest.dig_node(pos)
+    end
+end
+
+-- add stone floor, if air
+local add_single = function(x, y, z, user, pointed_thing)
+    local pos = vector.add(pointed_thing.under, {x=x, y=0, z=z})
+    if minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) then
+        minetest.set_node(pos, {name = "default:stone"})
+    end
+end
+
+-- add torch
+local add_light = function(spacing, user, pointed_thing)
+    local pos = vector.add(pointed_thing.under, {x=0, y=5, z=0})
+    local ceiling = minetest.get_node(vector.add(pos, {x=0, y=1, z=0})).name
+    if (ceiling == "default:stone" or ceiling == "default:desert_stone") and
+            minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) and
+            minetest.find_node_near(pos, spacing, {name = "default:torch_ceiling"}) == nil then
+        minetest.set_node(pos, {name = "default:torch_ceiling"})
+    end
+end
 
 -- dig rectangular shape for non-45 degree angles
 local dig_rect = function(xmin, xmax, zmin, zmax, user, pointed_thing)
     for x=xmin,xmax do
         for z=zmin,zmax do
-            -- delete nodes (not torches)
             for y=1,4 do
-                local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-                if minetest.get_node(pos).name ~= "default:torch_ceiling" and not minetest.is_protected(pos, user) then
-                    minetest.dig_node(pos)
-                end
-            end
-            -- add flooring (if air)
-            local pos = vector.add(pointed_thing.under, {x=x, y=0, z=z})
-            if minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) then
-                minetest.set_node(pos, {name = "default:cobble"})
+                dig_single(x, y, z, user, pointed_thing)
             end
         end
     end
+end
+
+-- rectangular finishing, floor and ceiling
+local dig_rect_fin = function(xmin, xmax, zmin, zmax, user, pointed_thing)
+    for x=xmin,xmax do
+        for z=zmin,zmax do
+            dig_single(x, 5, z, user, pointed_thing)
+            add_single(x, 0, z, user, pointed_thing)
+        end
+    end
     -- add lighting
-    local pos = vector.add(pointed_thing.under, {x=0, y=4, z=0})
-    local ceiling = minetest.get_node(vector.add(pos, {x=0, y=1, z=0})).name
-    if (ceiling == "default:stone" or ceiling == "default:desert_stone") and
-            minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) and
-            minetest.find_node_near(pos, 3, {name = "default:torch_ceiling"}) == nil then
-        minetest.set_node(pos, {name = "default:torch_ceiling"})
+    add_light(2, user, pointed_thing)
+end
+
+-- dig extra width for 45 degree angles
+local dig_nw = function(user, pointed_thing)
+    for y=1,4 do
+        dig_single(-3, y, 0, user, pointed_thing)
+        dig_single(-2, y, -1, user, pointed_thing)
+        dig_single(-1, y, -2, user, pointed_thing)
+        dig_single(0, y, 3, user, pointed_thing)
+        dig_single(1, y, 2, user, pointed_thing)
+        dig_single(2, y, 1, user, pointed_thing)
     end
 end
 
--- dig plus shape for 45 degree angles
+local dig_sw = function(user, pointed_thing)
+    for y=1,4 do
+        dig_single(-3, y, 0, user, pointed_thing)
+        dig_single(-2, y, 1, user, pointed_thing)
+        dig_single(-1, y, 2, user, pointed_thing)
+        dig_single(0, y, -3, user, pointed_thing)
+        dig_single(1, y, -2, user, pointed_thing)
+        dig_single(2, y, -1, user, pointed_thing)
+    end
+end
+
+local dig_se = function(user, pointed_thing)
+    for y=1,4 do
+        dig_single(-3, y, 0, user, pointed_thing)
+        dig_single(-2, y, -1, user, pointed_thing)
+        dig_single(-1, y, -2, user, pointed_thing)
+        dig_single(1, y, 2, user, pointed_thing)
+        dig_single(2, y, 1, user, pointed_thing)
+        dig_single(3, y, 0, user, pointed_thing)
+    end
+end
+
+local dig_ne = function(user, pointed_thing)
+    for y=1,4 do
+        dig_single(-2, y, 1, user, pointed_thing)
+        dig_single(-1, y, 2, user, pointed_thing)
+        dig_single(0, y, 3, user, pointed_thing)
+        dig_single(1, y, -2, user, pointed_thing)
+        dig_single(2, y, -1, user, pointed_thing)
+        dig_single(3, y, 0, user, pointed_thing)
+    end
+end
+
+-- 45 degree finishing, floor and ceiling
 local dig_plus = function(xmin, xmax, zmin, zmax, user, pointed_thing)
     -- center section
     for x=xmin,xmax do
         for z=zmin+1,zmax-1 do
             -- delete nodes (not torches)
-            for y=1,4 do
-                local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-                if minetest.get_node(pos).name ~= "default:torch_ceiling" and not minetest.is_protected(pos, user) then
-                    minetest.dig_node(pos)
-                end
+            for y=1,5 do
+                dig_single(x, y, z, user, pointed_thing)
             end
             -- add flooring (if air)
-            local pos = vector.add(pointed_thing.under, {x=x, y=0, z=z})
-            if minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) then
-                minetest.set_node(pos, {name = "default:cobble"})
-            end
+            add_single(x, 0, z, user, pointed_thing)
         end
     end
     -- top and bottom sections
     for x=xmin+1,xmax-1 do
         for z=zmin,zmax,3 do
             -- delete nodes (not torches)
-            for y=1,4 do
-                local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-                if minetest.get_node(pos).name ~= "default:torch_ceiling" and not minetest.is_protected(pos, user) then
-                    minetest.dig_node(pos)
-                end
+            for y=1,5 do
+                dig_single(x, y, z, user, pointed_thing)
             end
             -- add flooring (if air)
-            local pos = vector.add(pointed_thing.under, {x=x, y=0, z=z})
-            if minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) then
-                minetest.set_node(pos, {name = "default:cobble"})
-            end
+            add_single(x, 0, z, user, pointed_thing)
         end
     end
-
     -- add lighting
-    local pos = vector.add(pointed_thing.under, {x=0, y=4, z=0})
-    local ceiling = minetest.get_node(vector.add(pos, {x=0, y=1, z=0})).name
-    if (ceiling == "default:stone" or ceiling == "default:desert_stone") and
-            minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) and
-            minetest.find_node_near(pos, 2, {name = "default:torch_ceiling"}) == nil then
-        minetest.set_node(pos, {name = "default:torch_ceiling"})
-    end
+    add_light(2, user, pointed_thing)
 end
 
 -- dig tunnel based on direction given
 local dig_tunnel = function(cdir, user, pointed_thing)
     if minetest.check_player_privs(user, "tunneling") then
         if cdir == 0 then                                   -- pointed 0 (north)
-            dig_rect(-1, 1, 0, 2, user, pointed_thing)
+            dig_rect(-2, 2, 0, 2, user, pointed_thing)
+            dig_rect_fin(-1, 1, 0, 2, user, pointed_thing)
+            add_ref(0, 2, user, pointed_thing)
         elseif cdir == 1 then                               -- pointed -22.5
-            dig_rect(-2, 1, 0, 2, user, pointed_thing)
+            dig_rect(-3, 2, 0, 2, user, pointed_thing)
+            dig_rect_fin(-2, 1, 0, 2, user, pointed_thing)
+            add_ref(-1, 2, user, pointed_thing)
         elseif cdir == 2 then                               -- pointed -45 (northwest)
+            dig_nw(user, pointed_thing)
             dig_plus(-2, 1, -1, 2, user, pointed_thing)
+            add_ref(-1, 1, user, pointed_thing)
         elseif cdir == 3 then                               -- pointed -67.5
-            dig_rect(-2, 0, -1, 2, user, pointed_thing)
+            dig_rect(-2, 0, -2, 3, user, pointed_thing)
+            dig_rect_fin(-2, 0, -1, 2, user, pointed_thing)
+            add_ref(-2, 1, user, pointed_thing)
         elseif cdir == 4 then                               -- pointed -90 (west)
-            dig_rect(-2, 0, -1, 1, user, pointed_thing)
+            dig_rect(-2, 0, -2, 2, user, pointed_thing)
+            dig_rect_fin(-2, 0, -1, 1, user, pointed_thing)
+            add_ref(-2, 0, user, pointed_thing)
         elseif cdir == 5 then                               -- pointed -90-22.5
-            dig_rect(-2, 0, -2, 1, user, pointed_thing)
+            dig_rect(-2, 0, -3, 2, user, pointed_thing)
+            dig_rect_fin(-2, 0, -2, 1, user, pointed_thing)
+            add_ref(-2, -1, user, pointed_thing)
         elseif cdir == 6 then                               -- pointed -90-45 (southwest)
+            dig_sw(user, pointed_thing)
             dig_plus(-2, 1, -2, 1, user, pointed_thing)
+            add_ref(-1, -1, user, pointed_thing)
         elseif cdir == 7 then                               -- pointed -90-67.5
-            dig_rect(-2, 1, -2, 0, user, pointed_thing)
+            dig_rect(-3, 2, -2, 0, user, pointed_thing)
+            dig_rect_fin(-2, 1, -2, 0, user, pointed_thing)
+            add_ref(-1, -2, user, pointed_thing)
         elseif cdir == 8 then                               -- pointed +/-180 (south)
-            dig_rect(-1, 1, -2, 0, user, pointed_thing)
-        elseif cdir == 9 then                               -- pointed +22.5
-            dig_rect(-1, 2, -2, 0, user, pointed_thing)
-        elseif cdir == 10 then                              -- pointed +45 (northeast)
+            dig_rect(-2, 2, -2, 0, user, pointed_thing)
+            dig_rect_fin(-1, 1, -2, 0, user, pointed_thing)
+            add_ref(0, -2, user, pointed_thing)
+        elseif cdir == 9 then                               -- pointed +90+67.5
+            dig_rect(-2, 3, -2, 0, user, pointed_thing)
+            dig_rect_fin(-1, 2, -2, 0, user, pointed_thing)
+            add_ref(1, -2, user, pointed_thing)
+        elseif cdir == 10 then                              -- pointed +90+45 (southeast)
+            dig_se(user, pointed_thing)
             dig_plus(-1, 2, -2, 1, user, pointed_thing)
-        elseif cdir == 11 then                              -- pointed +67.5
-            dig_rect(0, 2, -2, 1, user, pointed_thing)
+            add_ref(1, -1, user, pointed_thing)
+        elseif cdir == 11 then                              -- pointed +90+22.5
+            dig_rect(0, 2, -3, 2, user, pointed_thing)
+            dig_rect_fin(0, 2, -2, 1, user, pointed_thing)
+            add_ref(2, -1, user, pointed_thing)
         elseif cdir == 12 then                              -- pointed +90 (east)
-            dig_rect(0, 2, -1, 1, user, pointed_thing)
-        elseif cdir == 13 then                              -- pointed +90+22.5
-            dig_rect(0, 2, -1, 2, user, pointed_thing)
-        elseif cdir == 14 then                              -- pointed +90+45 (southeast)
+            dig_rect(0, 2, -2, 2, user, pointed_thing)
+            dig_rect_fin(0, 2, -1, 1, user, pointed_thing)
+            add_ref(2, 0, user, pointed_thing)
+        elseif cdir == 13 then                              -- pointed +67.5
+            dig_rect(0, 2, -2, 3, user, pointed_thing)
+            dig_rect_fin(0, 2, -1, 2, user, pointed_thing)
+            add_ref(2, 1, user, pointed_thing)
+        elseif cdir == 14 then                              -- pointed +45 (northeast)
+            dig_ne(user, pointed_thing)
             dig_plus(-1, 2, -1, 2, user, pointed_thing)
-        elseif cdir == 15 then                              -- pointed +90+67.5
-            dig_rect(-1, 2, 0, 2, user, pointed_thing)
+            add_ref(1, 1, user, pointed_thing)
+        elseif cdir == 15 then                              -- pointed +22.5
+            dig_rect(-2, 3, 0, 2, user, pointed_thing)
+            dig_rect_fin(-1, 2, 0, 2, user, pointed_thing)
+            add_ref(1, 2, user, pointed_thing)
         end
     end
 end
