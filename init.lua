@@ -171,9 +171,9 @@ end
 
 local dig_se = function(user, pointed_thing)
     for y=1,4 do
-        dig_single(-3, y, 0, user, pointed_thing)
         dig_single(-2, y, -1, user, pointed_thing)
         dig_single(-1, y, -2, user, pointed_thing)
+        dig_single(0, y, -3, user, pointed_thing)
         dig_single(1, y, 2, user, pointed_thing)
         dig_single(2, y, 1, user, pointed_thing)
         dig_single(3, y, 0, user, pointed_thing)
