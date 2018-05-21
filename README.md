@@ -3,7 +3,6 @@
 A Minetest Mod to easily create arbitrarily curved tunnels.
 
 Especially designed to make laying track for the advtrains mod easier.
-*This mod only works when in creative mode—it can do great damage if misused.*
 
 by David G (kestral246@gmail.com)
 
@@ -13,19 +12,22 @@ Features
 - Creates tunnel segments in any of sixteen possible directions with one click.
 - Direction of digging based on direction player is pointing.
 - Provides changing icon to help player align in proper direction.
+- Adds cobblestone reference block in floor to show next dig point, and to help placing advtrains track.
+- Adds torches to ceiling if ceiling is stone or desert_stone, to help with seeing.
+
+- Only allows tunnel digging when in creative mode.
 - Uses privileges, requires "tunneling" privilege to be able to use.
 - Checks protection, and doesn't dig any protected nodes.
-- Checks for creative mode before tunneling; otherwise it's just equivalent to a wooden pickaxe that won't wear out.
+
 - Reference point is at ground level: possible to increase or decrease the grade by changing the height of the reference node.
 - Fills in holes in flooring with stone.
-- Adds torches to ceiling if ceiling is stone or desert_stone.
 - Works outside of tunnels to clear ground and provide cuts and fills.
-- New:  Increased tunnel width to 5 blocks and height to 5 blocks.
-- New:  Now adds cobblestone reference blocks in floor, to help align advtrains track.
 
 
 How to use
 ----------
+Minetest needs to be in creative mode for this mod to work—it is too overpowered otherwise.
+
 Player needs to have tunneling privilege to be able to use the tunnelmaker tool (/grant &lt;player&gt; tunneling).
 
 To give player a tunnelmaker tool use (/give &lt;player&gt; tunnelmaker:1). *See below for crafting recipe.*
