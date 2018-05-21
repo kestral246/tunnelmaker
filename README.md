@@ -9,10 +9,10 @@ by David G (kestral246@gmail.com)
 
 Features
 --------
-- Creates tunnel segments in any of sixteen possible directions with one click.
+- Creates tunnel segments in any of the sixteen possible advtrains track directions with one click.
 - Direction of digging based on direction player is pointing.
-- Provides changing icon to help player align in proper direction.
-- Adds cobblestone reference block in floor to show next dig point, and to help placing advtrains track.
+- Provides changing icon to help player align in proper direction, based on compassgps mod.
+- Adds cobblestone reference blocks in floor to show next dig point, and to help with placing advtrains track.
 - Adds torches to ceiling if ceiling is stone or desert_stone, to help with seeing.
 
 - Only allows tunnel digging when in creative mode.
