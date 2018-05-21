@@ -143,7 +143,7 @@ local dig_rect_fin = function(xmin, xmax, zmin, zmax, user, pointed_thing)
         end
     end
     -- add lighting
-    add_light(1, user, pointed_thing)
+    add_light(2, user, pointed_thing)
 end
 
 -- dig extra width for 45 degree angles
@@ -216,7 +216,7 @@ local dig_plus = function(xmin, xmax, zmin, zmax, user, pointed_thing)
         end
     end
     -- add lighting
-    add_light(1, user, pointed_thing)
+    add_light(2, user, pointed_thing)
 end
 
 -- dig tunnel based on direction given
