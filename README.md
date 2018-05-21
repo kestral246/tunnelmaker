@@ -48,6 +48,13 @@ To increase the grade, place a block on the gray node and select that before rig
 ![Turns from 45°](images/dir45.png "Turns from 45")
 
 
+Notes
+-----
+When used with minetest version 0.4.16, digging a tunnel causes the blocks to just disappear.
+
+When used with a recent 0.5.0 development version of minetest, digging a tunnel causes the blocks to rain down from the ceiling and collect on the floor.  I'm not sure which is the better behavior to have, but I don't know how to change it in either case.
+
+
 Crafting guide
 --------------
 ```
