@@ -3,7 +3,7 @@
 A Minetest Mod to easily create arbitrarily curved tunnels.
 
 Especially designed to make laying track for the advtrains mod easier.
-*This mod is intended for creative mode—it can do great damage if misused.*
+*This mod only works when in creative mode—it can do great damage if misused.*
 
 by David G (kestral246@gmail.com)
 
@@ -15,6 +15,7 @@ Features
 - Provides changing icon to help player align in proper direction.
 - Uses privileges, requires "tunneling" privilege to be able to use.
 - Checks protection, and doesn't dig any protected nodes.
+- Checks for creative mode before tunneling; otherwise it's just equivalent to a wooden pickaxe that won't wear out.
 - Reference point is at ground level: possible to increase or decrease the grade by changing the height of the reference node.
 - Fills in holes in flooring with stone.
 - Adds torches to ceiling if ceiling is stone or desert_stone.

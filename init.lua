@@ -143,7 +143,7 @@ local dig_rect_fin = function(xmin, xmax, zmin, zmax, user, pointed_thing)
         end
     end
     -- add lighting
-    add_light(2, user, pointed_thing)
+    add_light(1, user, pointed_thing)
 end
 
 -- dig extra width for 45 degree angles
@@ -216,73 +216,73 @@ local dig_plus = function(xmin, xmax, zmin, zmax, user, pointed_thing)
         end
     end
     -- add lighting
-    add_light(2, user, pointed_thing)
+    add_light(1, user, pointed_thing)
 end
 
 -- dig tunnel based on direction given
 local dig_tunnel = function(cdir, user, pointed_thing)
     if minetest.check_player_privs(user, "tunneling") then
-        if cdir == 0 then                                   -- pointed 0 (north)
+        if cdir == 0 then                                   -- pointed north
             dig_rect(-2, 2, 0, 2, user, pointed_thing)
             dig_rect_fin(-1, 1, 0, 2, user, pointed_thing)
             add_ref(0, 2, user, pointed_thing)
-        elseif cdir == 1 then                               -- pointed -22.5
+        elseif cdir == 1 then                               -- pointed north-northwest
             dig_rect(-3, 2, 0, 2, user, pointed_thing)
             dig_rect_fin(-2, 1, 0, 2, user, pointed_thing)
             add_ref(-1, 2, user, pointed_thing)
-        elseif cdir == 2 then                               -- pointed -45 (northwest)
+        elseif cdir == 2 then                               -- pointed northwest
             dig_nw(user, pointed_thing)
             dig_plus(-2, 1, -1, 2, user, pointed_thing)
             add_ref(-1, 1, user, pointed_thing)
-        elseif cdir == 3 then                               -- pointed -67.5
+        elseif cdir == 3 then                               -- pointed west-northwest
             dig_rect(-2, 0, -2, 3, user, pointed_thing)
             dig_rect_fin(-2, 0, -1, 2, user, pointed_thing)
             add_ref(-2, 1, user, pointed_thing)
-        elseif cdir == 4 then                               -- pointed -90 (west)
+        elseif cdir == 4 then                               -- pointed west
             dig_rect(-2, 0, -2, 2, user, pointed_thing)
             dig_rect_fin(-2, 0, -1, 1, user, pointed_thing)
             add_ref(-2, 0, user, pointed_thing)
-        elseif cdir == 5 then                               -- pointed -90-22.5
+        elseif cdir == 5 then                               -- pointed west-southwest
             dig_rect(-2, 0, -3, 2, user, pointed_thing)
             dig_rect_fin(-2, 0, -2, 1, user, pointed_thing)
             add_ref(-2, -1, user, pointed_thing)
-        elseif cdir == 6 then                               -- pointed -90-45 (southwest)
+        elseif cdir == 6 then                               -- pointed southwest
             dig_sw(user, pointed_thing)
             dig_plus(-2, 1, -2, 1, user, pointed_thing)
             add_ref(-1, -1, user, pointed_thing)
-        elseif cdir == 7 then                               -- pointed -90-67.5
+        elseif cdir == 7 then                               -- pointed south-southwest
             dig_rect(-3, 2, -2, 0, user, pointed_thing)
             dig_rect_fin(-2, 1, -2, 0, user, pointed_thing)
             add_ref(-1, -2, user, pointed_thing)
-        elseif cdir == 8 then                               -- pointed +/-180 (south)
+        elseif cdir == 8 then                               -- pointed south
             dig_rect(-2, 2, -2, 0, user, pointed_thing)
             dig_rect_fin(-1, 1, -2, 0, user, pointed_thing)
             add_ref(0, -2, user, pointed_thing)
-        elseif cdir == 9 then                               -- pointed +90+67.5
+        elseif cdir == 9 then                               -- pointed south-southeast
             dig_rect(-2, 3, -2, 0, user, pointed_thing)
             dig_rect_fin(-1, 2, -2, 0, user, pointed_thing)
             add_ref(1, -2, user, pointed_thing)
-        elseif cdir == 10 then                              -- pointed +90+45 (southeast)
+        elseif cdir == 10 then                              -- pointed southeast
             dig_se(user, pointed_thing)
             dig_plus(-1, 2, -2, 1, user, pointed_thing)
             add_ref(1, -1, user, pointed_thing)
-        elseif cdir == 11 then                              -- pointed +90+22.5
+        elseif cdir == 11 then                              -- pointed east-southeast
             dig_rect(0, 2, -3, 2, user, pointed_thing)
             dig_rect_fin(0, 2, -2, 1, user, pointed_thing)
             add_ref(2, -1, user, pointed_thing)
-        elseif cdir == 12 then                              -- pointed +90 (east)
+        elseif cdir == 12 then                              -- pointed east
             dig_rect(0, 2, -2, 2, user, pointed_thing)
             dig_rect_fin(0, 2, -1, 1, user, pointed_thing)
             add_ref(2, 0, user, pointed_thing)
-        elseif cdir == 13 then                              -- pointed +67.5
+        elseif cdir == 13 then                              -- pointed east-northeast
             dig_rect(0, 2, -2, 3, user, pointed_thing)
             dig_rect_fin(0, 2, -1, 2, user, pointed_thing)
             add_ref(2, 1, user, pointed_thing)
-        elseif cdir == 14 then                              -- pointed +45 (northeast)
+        elseif cdir == 14 then                              -- pointed northeast
             dig_ne(user, pointed_thing)
             dig_plus(-1, 2, -1, 2, user, pointed_thing)
             add_ref(1, 1, user, pointed_thing)
-        elseif cdir == 15 then                              -- pointed +22.5
+        elseif cdir == 15 then                              -- pointed north-northeast
             dig_rect(-2, 3, 0, 2, user, pointed_thing)
             dig_rect_fin(-1, 2, 0, 2, user, pointed_thing)
             add_ref(1, 2, user, pointed_thing)
@@ -307,6 +307,7 @@ for i,img in ipairs(images) do
         stack_max = 1,
         range = 7.0,
         -- dig single node like wood pickaxe with left mouse click
+        -- works in both regular and creative modes
         tool_capabilities = {
             full_punch_interval = 1.2,
             max_drop_level=0,
@@ -317,8 +318,12 @@ for i,img in ipairs(images) do
         },
 
         -- dig tunnel with right mouse click (double tap on android)
+        -- tunneling only works if in creative mode
         on_place = function(itemstack, placer, pointed_thing)
-            if pointed_thing.type=="node" then
+            local player_name = placer and placer:get_player_name() or ""
+            local creative_enabled = (creative and creative.is_enabled_for
+                            and creative.is_enabled_for(player_name))
+            if creative_enabled and pointed_thing.type=="node" then
                 dig_tunnel(i-1, placer, pointed_thing)
             end
         end,
