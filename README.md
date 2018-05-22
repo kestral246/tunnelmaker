@@ -12,6 +12,7 @@ Features
 - Creates tunnel segments in any of the sixteen possible advtrains track directions with one click.
 - Direction of digging based on direction player is pointing.
 - Provides changing icon to help player align in proper direction, based on compassgps mod.
+- Checks ceiling for blocks capable of falling, and replaces them with cobblestone.
 - Adds cobblestone reference blocks in floor to show next dig point, and to help with placing advtrains track.
 - Adds torches to ceiling if ceiling is stone or desert_stone, to help with seeing.
 
