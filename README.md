@@ -49,11 +49,20 @@ To increase the grade, place a block on the gray node and select that before rig
 ![Turns from 45°](images/dir45.png "Turns from 45")
 
 
-Notes
------
-When used with minetest version 0.4.16, digging a tunnel causes the blocks to just disappear.
+Update
+------
+Switched digging function from dig_node to node_dig.  This was based on what matyilona200 used for the tunneltest mod.  Thanks matyilona!  This gives several improvements:
 
-When used with a recent 0.5.0 development version of minetest, digging a tunnel causes the blocks to rain down from the ceiling and collect on the floor.  I'm not sure which is the better behavior to have, but I don't know how to change it in either case.
+- When tunneling, the inventory adds only a single instance of each type of block dug.  Still works if inventory is full.
+- Works the same with minetest versions 0.4.16 and 0.5.0-dev—no more blocks raining down.
+- Works with digall mod enabled.  However, make sure digall is deactivated before tunneling!
+
+
+Digging pattern reference
+-------------------------
+Here are all sixteen possible digging patterns for reference.  The white blocks have a height of 5 blocks, while the light gray blocks on the sides have a height of 4 blocks.  Ground fill is only done in white block area.
+
+![Digging patterns](images/digging_patterns.png "Digging patterns")
 
 
 Crafting guide

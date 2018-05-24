@@ -2,6 +2,12 @@
 -- Another tunnel digging mod for minetest.
 -- by David G (kestral246@gmail.com)
 
+-- Version 0.8.0
+-- Changed from dig_node to node_dig (based on what matyilona200 did for the Tunneltest mod)
+-- Places only a single instance of each type of block dug in inventory
+-- Doesn't cause blocks to drop in 0.5.0-dev
+-- Works with digall mod, but make sure it's deactivated before tunneling!
+
 -- Version 0.7.0
 -- Added test for fallable blocks in ceiling and replace them with cobblestone.
 -- Fixed bug where I was digging from lower blocks to higher blocks.
@@ -94,6 +100,7 @@ local images = {
 }
 -- add reference block to point to next target location and to aid laying track
 -- currently using default:cobble
+-- changing code to use biome appropriate fill blocks is left as a future exercise
 local add_ref = function(x, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=0, z=z})
     if not minetest.is_protected(pos, user) then
@@ -102,10 +109,11 @@ local add_ref = function(x, z, user, pointed_thing)
 end
 
 -- delete single node, but not torches
+-- version using get_node
 local dig_single = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
     if minetest.get_node(pos).name ~= "default:torch_ceiling" and not minetest.is_protected(pos, user) then
-        minetest.dig_node(pos)
+        minetest.node_dig(pos, minetest.get_node(pos), user)
     end
 end
 
