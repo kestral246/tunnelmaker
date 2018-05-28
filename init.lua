@@ -2,6 +2,12 @@
 -- Another tunnel digging mod for minetest.
 -- by David G (kestral246@gmail.com)
 
+-- Version 0.8.1
+-- Test if air before digging.  Cleans up air not diggable INFO messages.
+-- Added test for desert-type biomes, which lets me start using biome-appropriate fill.
+--   needs minetest 0.5.0+ to correctly flag desert biomes
+--   however, if api doesn't exist (using 0.4.x), test just always returns false
+
 -- Version 0.8.0
 -- Changed from dig_node to node_dig (based on what matyilona200 did for the Tunneltest mod)
 -- Places only a single instance of each type of block dug in inventory
@@ -98,40 +104,67 @@ local images = {
         "tunnelmaker_14.png",
         "tunnelmaker_15.png",
 }
--- add reference block to point to next target location and to aid laying track
--- currently using default:cobble
--- changing code to use biome appropriate fill blocks is left as a future exercise
+
+-- tests whether position is in desert-type biomes, such as desert, sandstone_desert, cold_desert, etc
+-- always just returns false if can't determine biome (i.e., using 0.4.x version)
+local is_desert = function(pos)
+    if minetest.get_biome_data then
+        local cur_biome = minetest.get_biome_name( minetest.get_biome_data(pos).biome )
+        return string.match(cur_biome, "desert")
+    else
+        return false
+    end
+end
+
+-- add cobble reference block to point to next target location and to aid laying track
+-- in minetest 0.5.0+, desert biomes will use desert_cobble
 local add_ref = function(x, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=0, z=z})
     if not minetest.is_protected(pos, user) then
-        minetest.set_node(pos, {name = "default:cobble"})
+        if is_desert(pos) then
+            minetest.set_node(pos, {name = "default:desert_cobble"})
+        else
+            minetest.set_node(pos, {name = "default:cobble"})
+        end
     end
 end
 
 -- delete single node, but not torches
--- version using get_node
+-- test for air, since air is not diggable
 local dig_single = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-    if minetest.get_node(pos).name ~= "default:torch_ceiling" and not minetest.is_protected(pos, user) then
+    local name = minetest.get_node(pos).name
+    if not minetest.is_protected(pos, user) and
+            name ~= "air" and name ~= "default:torch_ceiling" then
         minetest.node_dig(pos, minetest.get_node(pos), user)
     end
 end
 
 -- add stone floor, if air
+-- in minetest 0.5.0+, desert biomes will use desert_stone
 local replace_floor = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=0, z=z})
     if minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) then
-        minetest.set_node(pos, {name = "default:stone"})
+        if is_desert(pos) then
+            minetest.set_node(pos, {name = "default:desert_stone"})
+        else
+            minetest.set_node(pos, {name = "default:stone"})
+        end
     end
 end
 
--- check for blocks that can fall in future ceiling and convert to cobblestone before digging
+-- check for blocks that can fall in future ceiling and convert to cobble before digging
+-- in minetest 0.5.0+, desert biomes will use desert_cobble
 local replace_ceiling = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
     local ceiling = minetest.get_node(pos).name
     if (ceiling == "default:sand" or ceiling == "default:desert_sand" or ceiling == "default:silver_sand" or
             ceiling == "default:gravel") and not minetest.is_protected(pos, user) then
-        minetest.set_node(pos, {name = "default:cobble"})
+        if is_desert(pos) then
+            minetest.set_node(pos, {name = "default:desert_cobble"})
+        else
+            minetest.set_node(pos, {name = "default:cobble"})
+        end
     end
 end
 
