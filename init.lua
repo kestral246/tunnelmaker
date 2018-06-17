@@ -2,6 +2,13 @@
 -- Another tunnel digging mod for minetest.
 -- by David G (kestral246@gmail.com)
 
+-- Version 0.9.0
+-- 1. Updated digging patterns to fix minor irregularities.
+-- 2. Added protections for tunneling in water.
+--      Adds glass walls around tunnel whenever there is water.
+--      Adds glass endcap at end to protect from flooding while tunneling.
+-- 3. Restructured code again.  Code is longer, but simpler to understand.
+
 -- Version 0.8.1
 -- Test if air before digging.  Cleans up air not diggable INFO messages.
 -- Added test for desert-type biomes, which lets me start using biome-appropriate fill.
@@ -129,26 +136,32 @@ local add_ref = function(x, z, user, pointed_thing)
     end
 end
 
--- delete single node, but not torches
+-- delete single node, including water, but not torches or air
 -- test for air, since air is not diggable
 local dig_single = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
     local name = minetest.get_node(pos).name
-    if not minetest.is_protected(pos, user) and
-            name ~= "air" and name ~= "default:torch_ceiling" then
-        minetest.node_dig(pos, minetest.get_node(pos), user)
+    if not minetest.is_protected(pos, user) then
+        if string.match(name, "water") then
+            minetest.set_node(pos, {name = "air"})
+        elseif name ~= "air" and name ~= "default:torch_ceiling" then
+            minetest.node_dig(pos, minetest.get_node(pos), user)
+        end
     end
 end
 
--- add stone floor, if air
+-- add stone floor, if air or water or glass
 -- in minetest 0.5.0+, desert biomes will use desert_stone
 local replace_floor = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=0, z=z})
-    if minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) then
-        if is_desert(pos) then
-            minetest.set_node(pos, {name = "default:desert_stone"})
-        else
-            minetest.set_node(pos, {name = "default:stone"})
+    if not minetest.is_protected(pos, user) then
+        local name = minetest.get_node(pos).name
+        if name == "air" or string.match(name, "water") or name == "default:glass" then
+            if is_desert(pos) then
+                minetest.set_node(pos, {name = "default:desert_stone"})
+            else
+                minetest.set_node(pos, {name = "default:stone"})
+            end
         end
     end
 end
@@ -181,129 +194,838 @@ end
 
 -- dig rectangular shape, check ceiling and floor
 -- must dig from high to low, to properly deal with blocks that can fall
-local dig_rect = function(xmin, xmax, ymax, zmin, zmax, user, pointed_thing)
-    for x=xmin,xmax do
-        for z=zmin,zmax do
-            replace_ceiling(x, ymax+1, z, user, pointed_thing) 
-            for y=ymax,1,-1 do
-                dig_single(x, y, z, user, pointed_thing)
-            end
-            if ymax == 5 then
-                replace_floor(x, 0, z, user, pointed_thing)
-            end
+--local dig_rect = function(xmin, xmax, ymax, zmin, zmax, user, pointed_thing)
+--    for x=xmin,xmax do
+--        for z=zmin,zmax do
+--            replace_ceiling(x, ymax+1, z, user, pointed_thing) 
+--            if ymax == 5 then
+--                replace_floor(x, 0, z, user, pointed_thing)
+--            end
+--            for y=ymax,1,-1 do
+--                dig_single(x, y, z, user, pointed_thing)
+--            end
+--        end
+--    end
+--end
+
+
+-- add stone if water--debug function
+--local add_stone = function(x, y, z, user, pointed_thing)
+--    local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+--    if not minetest.is_protected(pos, user) then
+--        local name = minetest.get_node(pos).name
+----        if string.match(name, "water") then
+--            minetest.set_node(pos, {name = "default:stone"})  -- change to glass
+----        end
+--    end
+--end
+
+-- add glass if water
+--local add_glass = function(x, y, z, user, pointed_thing)
+--    local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+--    if not minetest.is_protected(pos, user) then
+--        local name = minetest.get_node(pos).name
+----        if string.match(name, "water") then
+--            minetest.set_node(pos, {name = "default:glass"})
+----        end
+--    end
+--end
+
+-- add rectangular glass wall for all blocks that are water (currently stone)
+--local add_wall = function(xmin, xmax, ymin, ymax, zmin, zmax, user, pointed_thing)
+--    for x=xmin,xmax do
+--        for z=zmin,zmax do
+--            for y=ymin,ymax do
+--            add_stone(x, y, z, user, pointed_thing)  --debug
+--            end
+--        end
+--    end
+--end
+
+-- add glass endcaps for all blocks that are water (currently all)
+--local add_endc = function(xmin, xmax, ymin, ymax, zmin, zmax, user, pointed_thing)
+--    for x=xmin,xmax do
+--        for z=zmin,zmax do
+--            for y=ymin,ymax do
+--                add_glass(x, y, z, user, pointed_thing)
+--            end
+--        end
+--    end
+--end
+
+
+-- add rectangular glass wall, and check floor too
+--local add_wflr = function(xmin, xmax, ymin, ymax, zmin, zmax, user, pointed_thing)
+--    for x=xmin,xmax do
+--        for z=zmin,zmax do
+--            for y=ymin,ymax do
+--                add_stone(x, y, z, user, pointed_thing)  --debug
+--            end
+--            add_stone(x, 0, z, user, pointed_thing)  --debug
+--        end
+--    end
+--end
+
+------------------------------------------------------------------
+-- new version functions
+------------------------------------------------------------------
+-- build glass barrier to water
+-- if node is water, replace with glass
+local check_for_water = function(x, y, z, user, pointed_thing)
+    local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+    if not minetest.is_protected(pos, user) then
+        local name = minetest.get_node(pos).name
+        if string.match(name, "water") then
+            minetest.set_node(pos, {name = "default:glass"})
         end
     end
 end
+
+-- debug, force node to stone
+local check_for_water_stone = function(x, y, z, user, pointed_thing)
+    local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+    if not minetest.is_protected(pos, user) then
+        local name = minetest.get_node(pos).name
+        -- if string.match(name, "water") then
+            minetest.set_node(pos, {name = "default:stone"})
+        -- end
+    end
+end
+
+-- debug, force node to glass
+local check_for_water_glass = function(x, y, z, user, pointed_thing)
+    local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+    if not minetest.is_protected(pos, user) then
+        local name = minetest.get_node(pos).name
+        -- if string.match(name, "water") then
+            minetest.set_node(pos, {name = "default:glass"})
+        -- end
+    end
+end
+
+-- convenience function to call all the ceiling checks
+local check_ceiling = function(x, y, z, user, pointed_thing)
+    -- first check that ceiling isn't node that can fall
+    replace_ceiling(x, y, z, user, pointed_thing)
+    -- then make sure ceiling isn't water
+    check_for_water(x, y, z, user, pointed_thing)
+    -- check_for_water_stone(x, y, z, user, pointed_thing) --debug
+end
+
+
+
+
+-- add wall if necessary to protect from water (pink)
+local aw = function(x, z, user, pointed_thing)
+    for y=0, 5 do
+        check_for_water(x, y, z, user, pointed_thing)
+        -- check_for_water_stone(x, y, z, user, pointed_thing)  --debug
+    end
+end
+
+-- add short endcap (light orange)
+local es = function(x, z, user, pointed_thing)
+    for y=0, 5 do
+        check_for_water(x, y, z, user, pointed_thing)
+        -- check_for_water_glass(x, y, z, user, pointed_thing)     --debug
+    end
+end
+
+-- add tall endcap (darker orange)
+local et = function(x, z, user, pointed_thing)
+    for y=0, 6 do
+        check_for_water(x, y, z, user, pointed_thing)
+        -- check_for_water_glass(x, y, z, user, pointed_thing)     --debug
+    end
+end
+
+-- dig short tunnel (light gray)
+local ds = function(x, z, user, pointed_thing)
+    local height = 4
+    check_ceiling(x, height+1, z, user, pointed_thing)
+    check_for_water(x, height+2, z, user, pointed_thing)
+    -- check_for_water_stone(x, height+2, z, user, pointed_thing)  --debug
+    for y=height, 1, -1 do          -- dig from high to low
+        dig_single(x, y, z, user, pointed_thing)
+    end
+    check_for_water(x, 0, z, user, pointed_thing)
+    -- check_for_water_stone(x, 0, z, user, pointed_thing) --debug
+end
+
+-- dig tall tunnel (light yellow)
+local dt = function(x, z, user, pointed_thing)
+    local height = 5
+    check_ceiling(x, height+1, z, user, pointed_thing)
+    for y=height, 1, -1 do          -- dig from high to low
+        dig_single(x, y, z, user, pointed_thing)
+    end
+    replace_floor(x, 0, z, user, pointed_thing)
+end
+
+
 
 -- dig tunnel based on direction given
 local dig_tunnel = function(cdir, user, pointed_thing)
     if minetest.check_player_privs(user, "tunneling") then
         if cdir == 0 then                                               -- pointed north
-            dig_rect(-2, -2, 4, 0, 2, user, pointed_thing)  --left
-            dig_rect(-1, 1, 5, 0, 2, user, pointed_thing)   --center
-            dig_rect(2, 2, 4, 0, 2, user, pointed_thing)    --right
+            aw(-3, 0, user, pointed_thing)
+            aw( 3, 0, user, pointed_thing)
+            aw(-3, 1, user, pointed_thing)
+            
+            aw( 3, 1, user, pointed_thing)
+            aw(-3, 2, user, pointed_thing)
+            aw( 3, 2, user, pointed_thing)
+
+            es(-3, 3, user, pointed_thing)
+            et(-2, 3, user, pointed_thing)
+            et(-1, 3, user, pointed_thing)
+            et( 0, 3, user, pointed_thing)
+            et( 1, 3, user, pointed_thing)
+            et( 2, 3, user, pointed_thing)
+            es( 3, 3, user, pointed_thing)
+
+
+            ds(-2, 0, user, pointed_thing)
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+            ds( 2, 0, user, pointed_thing)
+
+            ds(-2, 1, user, pointed_thing)
+            dt(-1, 1, user, pointed_thing)
+            dt( 0, 1, user, pointed_thing)
+            dt( 1, 1, user, pointed_thing)
+            ds( 2, 1, user, pointed_thing)
+
+            ds(-2, 2, user, pointed_thing)
+            dt(-1, 2, user, pointed_thing)
+            dt( 0, 2, user, pointed_thing)
+            dt( 1, 2, user, pointed_thing)
+            ds( 2, 2, user, pointed_thing)
+                   
             add_ref(0, 2, user, pointed_thing)
+            
         elseif cdir == 1 then                                           -- pointed north-northwest
-            dig_rect(-3, -3, 4, 0, 2, user, pointed_thing)  --left
-            dig_rect(-2, 1, 5, 0, 2, user, pointed_thing)   --center
-            dig_rect(2, 2, 4, 0, 2, user, pointed_thing)    --right
+            aw(-3,-1, user, pointed_thing)
+            aw(-3, 0, user, pointed_thing)
+            aw(-4, 0, user, pointed_thing)
+            aw(-4, 1, user, pointed_thing)
+            aw(-4, 2, user, pointed_thing)
+
+            aw( 3, 1, user, pointed_thing)
+            aw( 3, 2, user, pointed_thing)
+            aw( 2, 2, user, pointed_thing)
+            aw( 2, 3, user, pointed_thing)
+
+            es(-4, 3, user, pointed_thing)
+            et(-3, 3, user, pointed_thing)
+            et(-2, 3, user, pointed_thing)
+            et(-1, 3, user, pointed_thing)
+            et( 0, 3, user, pointed_thing)
+            et( 1, 3, user, pointed_thing)
+
+            ds(-2, 0, user, pointed_thing)
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+
+            ds(-3, 1, user, pointed_thing)
+            dt(-2, 1, user, pointed_thing)
+            dt(-1, 1, user, pointed_thing)
+            dt( 0, 1, user, pointed_thing)
+            dt( 1, 1, user, pointed_thing)
+            ds( 2, 1, user, pointed_thing)
+
+            ds(-3, 2, user, pointed_thing)
+            dt(-2, 2, user, pointed_thing)
+            dt(-1, 2, user, pointed_thing)
+            dt( 0, 2, user, pointed_thing)
+            ds( 1, 2, user, pointed_thing)
+
             add_ref(-1, 2, user, pointed_thing)
+            
         elseif cdir == 2 then                                           -- pointed northwest
-            dig_rect(-2, -2, 5, 0, 1, user, pointed_thing)  --left
-            dig_rect(-1, 0, 5, -1, 2, user, pointed_thing)  --center
-            dig_rect(1, 1, 5, 0, 1, user, pointed_thing)    --right
-            dig_rect(-3, -3, 4, 0, 0, user, pointed_thing)  --1
-            dig_rect(-2, -2, 4, -1, -1, user, pointed_thing)--2
-            dig_rect(-1, -1, 4, -2, -2, user, pointed_thing)--3
-            dig_rect(0, 0, 4, 3, 3, user, pointed_thing)    --4
-            dig_rect(1, 1, 4, 2, 2, user, pointed_thing)    --5
-            dig_rect(2, 2, 4, 1, 1, user, pointed_thing)    --6
+            aw(-2,-3, user, pointed_thing)
+            aw(-2,-2, user, pointed_thing)
+            aw(-3,-2, user, pointed_thing)
+            aw(-3,-1, user, pointed_thing)
+            aw(-3,-2, user, pointed_thing)
+            
+            aw( 3, 2, user, pointed_thing)
+            aw( 2, 2, user, pointed_thing)
+            aw( 2, 3, user, pointed_thing)
+            aw( 1, 3, user, pointed_thing)
+            aw( 1, 4, user, pointed_thing)
+
+            es(-4, 0, user, pointed_thing)
+            es(-4, 1, user, pointed_thing)
+            et(-3, 1, user, pointed_thing)
+            et(-2, 1, user, pointed_thing)
+            et(-2, 2, user, pointed_thing)
+            et(-1, 2, user, pointed_thing)
+            et(-1, 3, user, pointed_thing)
+            es(-1, 4, user, pointed_thing)
+            es( 0, 4, user, pointed_thing)
+--
+            ds(-1,-2, user, pointed_thing)
+            
+            ds(-2,-1, user, pointed_thing)
+            dt(-1,-1, user, pointed_thing)
+            
+            ds(-3, 0, user, pointed_thing)
+            dt(-2, 0, user, pointed_thing)
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            
+            ds(-1, 1, user, pointed_thing)
+            dt( 0, 1, user, pointed_thing)
+            dt( 1, 1, user, pointed_thing)
+            ds( 2, 1, user, pointed_thing)
+            
+            dt( 0, 2, user, pointed_thing)
+            ds( 1, 2, user, pointed_thing)
+            
+            ds( 0, 3, user, pointed_thing)
+
             add_ref(-1, 1, user, pointed_thing)
+
         elseif cdir == 3 then                                           -- pointed west-northwest
-            dig_rect(-2, 0, 4, 3, 3, user, pointed_thing)   --top
-            dig_rect(-2, 0, 5, -1, 2, user, pointed_thing)  --center
-            dig_rect(-2, 0, 4, -2, -2, user, pointed_thing) --bottom
+            aw(-1,-3, user, pointed_thing)
+            aw(-2,-3, user, pointed_thing)
+            aw(-2,-2, user, pointed_thing)
+            aw(-3,-2, user, pointed_thing)
+            
+            aw( 1, 3, user, pointed_thing)
+            aw( 0, 3, user, pointed_thing)
+            aw( 0, 4, user, pointed_thing)
+            aw(-1, 4, user, pointed_thing)
+            aw(-2, 4, user, pointed_thing)
+
+            et(-3,-1, user, pointed_thing)
+            et(-3, 0, user, pointed_thing)
+            et(-3, 1, user, pointed_thing)
+            et(-3, 2, user, pointed_thing)
+            et(-3, 3, user, pointed_thing)
+            es( 3, 4, user, pointed_thing)
+
+            ds(-1,-2, user, pointed_thing)
+            
+            ds(-2,-1, user, pointed_thing)
+            dt(-1,-1, user, pointed_thing)
+            dt( 0,-1, user, pointed_thing)
+            
+            dt(-2, 0, user, pointed_thing)
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            
+            dt(-2, 1, user, pointed_thing)
+            dt(-1, 1, user, pointed_thing)
+            dt( 0, 1, user, pointed_thing)
+            
+            dt(-2, 2, user, pointed_thing)
+            dt(-1, 2, user, pointed_thing)
+            ds( 0, 2, user, pointed_thing)
+            
+            ds(-2, 3, user, pointed_thing)
+            ds(-1, 3, user, pointed_thing)
+
             add_ref(-2, 1, user, pointed_thing)
+
         elseif cdir == 4 then                                           -- pointed west
-            dig_rect(-2, 0, 4, 2, 2, user, pointed_thing)   --top
-            dig_rect(-2, 0, 5, -1, 1, user, pointed_thing)  --center
-            dig_rect(-2, 0, 4, -2, -2, user, pointed_thing) --bottom
+            aw( 0,-3, user, pointed_thing)
+            aw(-1,-3, user, pointed_thing)
+            aw(-2,-3, user, pointed_thing)
+            
+            aw( 0, 3, user, pointed_thing)
+            aw(-1, 3, user, pointed_thing)
+            aw(-2, 3, user, pointed_thing)
+
+            es(-3,-3, user, pointed_thing)
+            et(-3,-2, user, pointed_thing)
+            et(-3,-1, user, pointed_thing)
+            et(-3, 0, user, pointed_thing)
+            et(-3, 1, user, pointed_thing)
+            et(-3, 2, user, pointed_thing)
+            es(-3, 3, user, pointed_thing)
+
+            ds(-2,-2, user, pointed_thing)
+            ds(-1,-2, user, pointed_thing)
+            ds( 0,-2, user, pointed_thing)
+            
+            dt(-2,-1, user, pointed_thing)
+            dt(-1,-1, user, pointed_thing)
+            dt( 0,-1, user, pointed_thing)
+            
+            dt(-2, 0, user, pointed_thing)
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            
+            dt(-2, 1, user, pointed_thing)
+            dt(-1, 1, user, pointed_thing)
+            dt( 0, 1, user, pointed_thing)
+            
+            ds(-2, 2, user, pointed_thing)
+            ds(-1, 2, user, pointed_thing)
+            ds( 0, 2, user, pointed_thing)
+
             add_ref(-2, 0, user, pointed_thing)
+
         elseif cdir == 5 then                                           -- pointed west-southwest
-            dig_rect(-2, 0, 4, 2, 2, user, pointed_thing)   --top
-            dig_rect(-2, 0, 5, -2, 1, user, pointed_thing)  --center
-            dig_rect(-2, 0, 4, -3, -3, user, pointed_thing) --bottom
+            aw( 1,-3, user, pointed_thing)
+            aw( 0,-3, user, pointed_thing)
+            aw( 0,-4, user, pointed_thing)
+            aw(-1,-4, user, pointed_thing)
+            aw(-2,-4, user, pointed_thing)
+            
+            aw(-1, 3, user, pointed_thing)
+            aw(-2, 3, user, pointed_thing)
+            aw(-2, 2, user, pointed_thing)
+            aw(-3, 2, user, pointed_thing)
+
+            es(-3,-4, user, pointed_thing)
+            et(-3,-3, user, pointed_thing)
+            et(-3,-2, user, pointed_thing)
+            et(-3,-1, user, pointed_thing)
+            et(-3, 0, user, pointed_thing)
+            et(-3, 1, user, pointed_thing)
+
+            ds(-2,-3, user, pointed_thing)
+            ds(-1,-3, user, pointed_thing)
+            
+            dt(-2,-2, user, pointed_thing)
+            dt(-1,-2, user, pointed_thing)
+            ds( 0,-2, user, pointed_thing)
+            
+            dt(-2,-1, user, pointed_thing)
+            dt(-1,-1, user, pointed_thing)
+            dt( 0,-1, user, pointed_thing)
+            
+            dt(-2, 0, user, pointed_thing)
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            
+            ds(-2, 1, user, pointed_thing)
+            dt(-1, 1, user, pointed_thing)
+            dt( 0, 1, user, pointed_thing)
+            
+            ds(-1, 2, user, pointed_thing)
+
             add_ref(-2, -1, user, pointed_thing)
+
         elseif cdir == 6 then                                           -- pointed southwest
-            dig_rect(-2, -2, 5, -1, 0, user, pointed_thing) --left
-            dig_rect(-1, 0, 5, -2, 1, user, pointed_thing)  --center
-            dig_rect(1, 1, 5, -1, 0, user, pointed_thing)   --right
-            dig_rect(-3, -3, 4, 0, 0, user, pointed_thing)  --1
-            dig_rect(-2, -2, 4, 1, 1, user, pointed_thing)  --2
-            dig_rect(-1, -1, 4, 2, 2, user, pointed_thing)  --3
-            dig_rect(0, 0, 4, -3, -3, user, pointed_thing)  --4
-            dig_rect(1, 1, 4, -2, -2, user, pointed_thing)  --5
-            dig_rect(2, 2, 4, -1, -1, user, pointed_thing)  --6
+            aw( 3,-2, user, pointed_thing)
+            aw( 2,-2, user, pointed_thing)
+            aw( 2,-3, user, pointed_thing)
+            aw( 1,-3, user, pointed_thing)
+            aw( 1,-4, user, pointed_thing)
+            
+            aw(-2, 3, user, pointed_thing)
+            aw(-2, 2, user, pointed_thing)
+            aw(-3, 2, user, pointed_thing)
+            aw(-3, 1, user, pointed_thing)
+            aw(-4, 1, user, pointed_thing)
+
+            es( 0,-4, user, pointed_thing)
+            es(-1,-4, user, pointed_thing)
+            et(-1,-3, user, pointed_thing)
+            et(-1,-2, user, pointed_thing)
+            et(-2,-2, user, pointed_thing)
+            et(-2,-1, user, pointed_thing)
+            et(-3,-1, user, pointed_thing)
+            es(-4,-1, user, pointed_thing)
+            es(-4, 0, user, pointed_thing)
+
+            ds( 0,-3, user, pointed_thing)
+            
+            dt( 0,-2, user, pointed_thing)
+            ds( 1,-2, user, pointed_thing)
+            
+            dt(-1,-1, user, pointed_thing)
+            dt( 0,-1, user, pointed_thing)
+            dt( 1,-1, user, pointed_thing)
+            ds( 2,-1, user, pointed_thing)
+            
+            ds(-3, 0, user, pointed_thing)
+            dt(-2, 0, user, pointed_thing)
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            
+            ds(-2, 1, user, pointed_thing)
+            dt(-1, 1, user, pointed_thing)
+            
+            ds(-1, 2, user, pointed_thing)
+
             add_ref(-1, -1, user, pointed_thing)
+            
         elseif cdir == 7 then                                           -- pointed south-southwest
-            dig_rect(-3, -3, 4, -2, 0, user, pointed_thing) --left
-            dig_rect(-2, 1, 5, -2, 0, user, pointed_thing)  --center
-            dig_rect(2, 2, 4, -2, 0, user, pointed_thing)   --right
+            aw( 3,-1, user, pointed_thing)
+            aw( 3,-2, user, pointed_thing)
+            aw( 2,-2, user, pointed_thing)
+            aw( 2,-3, user, pointed_thing)
+
+            aw(-3, 1, user, pointed_thing)
+            aw(-3, 0, user, pointed_thing)
+            aw(-4, 0, user, pointed_thing)
+            aw(-4,-1, user, pointed_thing)
+            aw(-4,-2, user, pointed_thing)
+
+            es( 1,-3, user, pointed_thing)
+            et( 0,-3, user, pointed_thing)
+            et(-1,-3, user, pointed_thing)
+            et(-2,-3, user, pointed_thing)
+            et(-3,-3, user, pointed_thing)
+            et(-4,-3, user, pointed_thing)
+
+            ds(-3,-2, user, pointed_thing)
+            dt(-2,-2, user, pointed_thing)
+            dt(-1,-2, user, pointed_thing)
+            dt( 0,-2, user, pointed_thing)
+            ds( 1,-2, user, pointed_thing)
+            
+            ds(-3,-1, user, pointed_thing)
+            dt(-2,-1, user, pointed_thing)
+            dt(-1,-1, user, pointed_thing)
+            dt( 0,-1, user, pointed_thing)
+            dt( 1,-1, user, pointed_thing)
+            ds( 2,-1, user, pointed_thing)
+            
+            ds(-2, 0, user, pointed_thing)
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+
             add_ref(-1, -2, user, pointed_thing)
+
         elseif cdir == 8 then                                           -- pointed south
-            dig_rect(-2, -2, 4, -2, 0, user, pointed_thing) --left
-            dig_rect(-1, 1, 5, -2, 0, user, pointed_thing)  --center
-            dig_rect(2, 2, 4, -2, 0, user, pointed_thing)   --right
+            aw( 3, 0, user, pointed_thing)
+            aw( 3,-1, user, pointed_thing)
+            aw( 3,-2, user, pointed_thing)
+
+            aw(-3, 0, user, pointed_thing)
+            aw(-3,-1, user, pointed_thing)
+            aw(-3,-2, user, pointed_thing)
+
+            es( 3,-3, user, pointed_thing)
+            et( 2,-3, user, pointed_thing)
+            et( 1,-3, user, pointed_thing)
+            et( 0,-3, user, pointed_thing)
+            et(-1,-3, user, pointed_thing)
+            et(-2,-3, user, pointed_thing)
+            es(-3,-3, user, pointed_thing)
+
+            ds(-2,-2, user, pointed_thing)
+            dt(-1,-2, user, pointed_thing)
+            dt( 0,-2, user, pointed_thing)
+            dt( 1,-2, user, pointed_thing)
+            ds( 2,-2, user, pointed_thing)
+
+            ds(-2,-1, user, pointed_thing)
+            dt(-1,-1, user, pointed_thing)
+            dt( 0,-1, user, pointed_thing)
+            dt( 1,-1, user, pointed_thing)
+            ds( 2,-1, user, pointed_thing)
+
+            ds(-2, 0, user, pointed_thing)
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+            ds( 2, 0, user, pointed_thing)
+
             add_ref(0, -2, user, pointed_thing)
+
         elseif cdir == 9 then                                           -- pointed south-southeast
-            dig_rect(-2, -2, 4, -2, 0, user, pointed_thing) --left
-            dig_rect(-1, 2, 5, -2, 0, user, pointed_thing)  --center
-            dig_rect(3, 3, 4, -2, 0, user, pointed_thing)   --right
+            aw( 3, 1, user, pointed_thing)
+            aw( 3, 0, user, pointed_thing)
+            aw( 4, 0, user, pointed_thing)
+            aw( 4,-1, user, pointed_thing)
+            aw( 4,-2, user, pointed_thing)
+
+            aw(-3,-1, user, pointed_thing)
+            aw(-3,-2, user, pointed_thing)
+            aw(-2,-2, user, pointed_thing)
+            aw(-2,-3, user, pointed_thing)
+
+            es( 4,-3, user, pointed_thing)
+            et( 3,-3, user, pointed_thing)
+            et( 2,-3, user, pointed_thing)
+            et( 1,-3, user, pointed_thing)
+            et( 0,-3, user, pointed_thing)
+            et(-1,-3, user, pointed_thing)
+
+            ds(-1,-2, user, pointed_thing)
+            dt( 0,-2, user, pointed_thing)
+            dt( 1,-2, user, pointed_thing)
+            dt( 2,-2, user, pointed_thing)
+            ds( 3,-2, user, pointed_thing)
+
+            ds(-2,-1, user, pointed_thing)
+            dt(-1,-1, user, pointed_thing)
+            dt( 0,-1, user, pointed_thing)
+            dt( 1,-1, user, pointed_thing)
+            dt( 2,-1, user, pointed_thing)
+            ds( 3,-1, user, pointed_thing)
+
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+            ds( 2, 0, user, pointed_thing)
+
             add_ref(1, -2, user, pointed_thing)
+
         elseif cdir == 10 then                                          -- pointed southeast
-            dig_rect(-1, -1, 5, -1, 0, user, pointed_thing) --left
-            dig_rect(0, 1, 5, -2, 1, user, pointed_thing)   --center
-            dig_rect(2, 2, 5, -1, 0, user, pointed_thing)   --right
-            dig_rect(-2, -2, 4, -1, -1, user, pointed_thing)--1
-            dig_rect(-1, -1, 4, -2, -2, user, pointed_thing)--2
-            dig_rect(0, 0, 4, -3, -3, user, pointed_thing)  --3
-            dig_rect(1, 1, 4, 2, 2, user, pointed_thing)    --4
-            dig_rect(2, 2, 4, 1, 1, user, pointed_thing)    --5
-            dig_rect(3, 3, 4, 0, 0, user, pointed_thing)    --6
+            aw( 2, 3, user, pointed_thing)
+            aw( 2, 2, user, pointed_thing)
+            aw( 3, 2, user, pointed_thing)
+            aw( 3, 1, user, pointed_thing)
+            aw( 4, 1, user, pointed_thing)
+
+            aw(-3,-2, user, pointed_thing)
+            aw(-2,-2, user, pointed_thing)
+            aw(-2,-3, user, pointed_thing)
+            aw(-1,-3, user, pointed_thing)
+            aw(-1,-4, user, pointed_thing)
+
+            es( 4, 0, user, pointed_thing)
+            es( 4,-1, user, pointed_thing)
+            et( 3,-1, user, pointed_thing)
+            et( 2,-1, user, pointed_thing)
+            et( 2,-2, user, pointed_thing)
+            et( 1,-2, user, pointed_thing)
+            et( 1,-3, user, pointed_thing)
+            es( 1,-4, user, pointed_thing)
+            es( 0,-4, user, pointed_thing)
+
+            ds( 0,-3, user, pointed_thing)
+
+            ds(-1,-2, user, pointed_thing)
+            dt( 0,-2, user, pointed_thing)
+
+            ds(-2,-1, user, pointed_thing)
+            dt(-1,-1, user, pointed_thing)
+            dt( 0,-1, user, pointed_thing)
+            dt( 1,-1, user, pointed_thing)
+
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+            dt( 2, 0, user, pointed_thing)
+            ds( 3, 0, user, pointed_thing)
+
+            dt( 1, 1, user, pointed_thing)
+            ds( 2, 1, user, pointed_thing)
+
+            ds( 1, 2, user, pointed_thing)
+
             add_ref(1, -1, user, pointed_thing)
+
         elseif cdir == 11 then                                          -- pointed east-southeast
-            dig_rect(0, 2, 4, 2, 2, user, pointed_thing)    --top
-            dig_rect(0, 2, 5, -2, 1, user, pointed_thing)   --center
-            dig_rect(0, 2, 4, -3, -3, user, pointed_thing)  --bottom
+            aw( 1, 3, user, pointed_thing)
+            aw( 2, 3, user, pointed_thing)
+            aw( 2, 2, user, pointed_thing)
+            aw( 3, 2, user, pointed_thing)
+
+            aw(-1,-3, user, pointed_thing)
+            aw( 0,-3, user, pointed_thing)
+            aw( 0,-4, user, pointed_thing)
+            aw( 1,-4, user, pointed_thing)
+            aw( 2,-4, user, pointed_thing)
+
+            et( 3, 1, user, pointed_thing)
+            et( 3, 0, user, pointed_thing)
+            et( 3,-1, user, pointed_thing)
+            et( 3,-2, user, pointed_thing)
+            et( 3,-3, user, pointed_thing)
+            es( 3,-4, user, pointed_thing)
+
+            ds( 1,-3, user, pointed_thing)
+            ds( 2,-3, user, pointed_thing)
+
+            ds( 0,-2, user, pointed_thing)
+            dt( 1,-2, user, pointed_thing)
+            dt( 2,-2, user, pointed_thing)
+
+            dt( 0,-1, user, pointed_thing)
+            dt( 1,-1, user, pointed_thing)
+            dt( 2,-1, user, pointed_thing)
+
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+            dt( 2, 0, user, pointed_thing)
+
+            dt( 0, 1, user, pointed_thing)
+            dt( 1, 1, user, pointed_thing)
+            ds( 2, 1, user, pointed_thing)
+
+            ds( 1, 2, user, pointed_thing)
+
             add_ref(2, -1, user, pointed_thing)
+
         elseif cdir == 12 then                                          -- pointed east
-            dig_rect(0, 2, 4, 2, 2, user, pointed_thing)    --top
-            dig_rect(0, 2, 5, -1, 1, user, pointed_thing)   --center
-            dig_rect(0, 2, 4, -2, -2, user, pointed_thing)  --bottom
+            aw( 0, 3, user, pointed_thing)
+            aw( 1, 3, user, pointed_thing)
+            aw( 2, 3, user, pointed_thing)
+
+            aw( 0,-3, user, pointed_thing)
+            aw( 1,-3, user, pointed_thing)
+            aw( 2,-3, user, pointed_thing)
+
+            es( 3, 3, user, pointed_thing)
+            et( 3, 2, user, pointed_thing)
+            et( 3, 1, user, pointed_thing)
+            et( 3, 0, user, pointed_thing)
+            et( 3,-1, user, pointed_thing)
+            et( 3,-2, user, pointed_thing)
+            es( 3,-3, user, pointed_thing)
+
+            ds( 0,-2, user, pointed_thing)
+            ds( 1,-2, user, pointed_thing)
+            ds( 2,-2, user, pointed_thing)
+
+            dt( 0,-1, user, pointed_thing)
+            dt( 1,-1, user, pointed_thing)
+            dt( 2,-1, user, pointed_thing)
+
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+            dt( 2, 0, user, pointed_thing)
+
+            dt( 0, 1, user, pointed_thing)
+            dt( 1, 1, user, pointed_thing)
+            dt( 2, 1, user, pointed_thing)
+
+            ds( 0, 2, user, pointed_thing)
+            ds( 1, 2, user, pointed_thing)
+            ds( 2, 2, user, pointed_thing)
+
             add_ref(2, 0, user, pointed_thing)
+
         elseif cdir == 13 then                                          -- pointed east-northeast
-            dig_rect(0, 2, 4, 3, 3, user, pointed_thing)    --top
-            dig_rect(0, 2, 5, -1, 2, user, pointed_thing)   --center
-            dig_rect(0, 2, 4, -2, -2, user, pointed_thing)  --bottom
+            aw(-1, 3, user, pointed_thing)
+            aw( 0, 3, user, pointed_thing)
+            aw( 0, 4, user, pointed_thing)
+            aw( 1, 4, user, pointed_thing)
+            aw( 2, 4, user, pointed_thing)
+
+            aw( 1,-3, user, pointed_thing)
+            aw( 2,-3, user, pointed_thing)
+            aw( 2,-2, user, pointed_thing)
+            aw( 3,-2, user, pointed_thing)
+
+            es( 3, 4, user, pointed_thing)
+            et( 3, 3, user, pointed_thing)
+            et( 3, 2, user, pointed_thing)
+            et( 3, 1, user, pointed_thing)
+            et( 3, 0, user, pointed_thing)
+            et( 3,-1, user, pointed_thing)
+
+            ds( 1,-2, user, pointed_thing)
+            
+            dt( 0,-1, user, pointed_thing)
+            dt( 1,-1, user, pointed_thing)
+            ds( 2,-1, user, pointed_thing)
+
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+            dt( 2, 0, user, pointed_thing)
+
+            dt( 0, 1, user, pointed_thing)
+            dt( 1, 1, user, pointed_thing)
+            dt( 2, 1, user, pointed_thing)
+
+            ds( 0, 2, user, pointed_thing)
+            dt( 1, 2, user, pointed_thing)
+            dt( 2, 2, user, pointed_thing)
+
+            ds( 1, 3, user, pointed_thing)
+            ds( 2, 3, user, pointed_thing)
+
             add_ref(2, 1, user, pointed_thing)
+
         elseif cdir == 14 then                                          -- pointed northeast
-            dig_rect(-1, -1, 5, 0, 1, user, pointed_thing)  --left
-            dig_rect(0, 1, 5, -1, 2, user, pointed_thing)   --center
-            dig_rect(2, 2, 5, 0, 1, user, pointed_thing)    --right
-            dig_rect(-2, -2, 4, 1, 1, user, pointed_thing)  --1
-            dig_rect(-1, -1, 4, 2, 2, user, pointed_thing)  --2
-            dig_rect(0, 0, 4, 3, 3, user, pointed_thing)    --3
-            dig_rect(1, 1, 4, -2, -2, user, pointed_thing)  --4
-            dig_rect(2, 2, 4, -1, -1, user, pointed_thing)  --5
-            dig_rect(3, 3, 4, 0, 0, user, pointed_thing)    --6
+            aw(-3, 2, user, pointed_thing)
+            aw(-2, 2, user, pointed_thing)
+            aw(-2, 3, user, pointed_thing)
+            aw(-1, 3, user, pointed_thing)
+            aw(-1, 4, user, pointed_thing)
+
+            aw( 2,-3, user, pointed_thing)
+            aw( 2,-2, user, pointed_thing)
+            aw( 3,-2, user, pointed_thing)
+            aw( 3,-1, user, pointed_thing)
+            aw( 4,-1, user, pointed_thing)
+
+            es( 0, 4, user, pointed_thing)
+            es( 1, 4, user, pointed_thing)
+            et( 1, 3, user, pointed_thing)
+            et( 1, 2, user, pointed_thing)
+            et( 2, 2, user, pointed_thing)
+            et( 2, 1, user, pointed_thing)
+            et( 3, 1, user, pointed_thing)
+            es( 4, 1, user, pointed_thing)
+            es( 4, 0, user, pointed_thing)
+
+            ds( 1,-2, user, pointed_thing)
+            
+            dt( 1,-1, user, pointed_thing)
+            ds( 2,-1, user, pointed_thing)
+            
+            
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+            dt( 2, 0, user, pointed_thing)
+            ds( 3, 0, user, pointed_thing)
+
+            ds(-2, 1, user, pointed_thing)
+            dt(-1, 1, user, pointed_thing)
+            dt( 0, 1, user, pointed_thing)
+            dt( 1, 1, user, pointed_thing)
+
+            ds(-1, 2, user, pointed_thing)
+            dt( 0, 2, user, pointed_thing)
+
+            ds( 0, 3, user, pointed_thing)
+
             add_ref(1, 1, user, pointed_thing)
+
         elseif cdir == 15 then                                          -- pointed north-northeast
-            dig_rect(-2, -2, 4, 0, 2, user, pointed_thing)  --left
-            dig_rect(-1, 2, 5, 0, 2, user, pointed_thing)   --center
-            dig_rect(3, 3, 4, 0, 2, user, pointed_thing)    --right
-            add_ref(1, 2, user, pointed_thing)
+            aw(-3, 1, user, pointed_thing)
+            aw(-3, 2, user, pointed_thing)
+            aw(-2, 2, user, pointed_thing)
+            aw(-2, 3, user, pointed_thing)
+
+            aw( 3,-1, user, pointed_thing)
+            aw( 3, 0, user, pointed_thing)
+            aw( 4, 0, user, pointed_thing)
+            aw( 4, 1, user, pointed_thing)
+            aw( 4, 2, user, pointed_thing)
+
+            et(-1, 3, user, pointed_thing)
+            et( 0, 3, user, pointed_thing)
+            et( 1, 3, user, pointed_thing)
+            et( 2, 3, user, pointed_thing)
+            et( 3, 3, user, pointed_thing)
+            es( 4, 3, user, pointed_thing)
+
+            dt(-1, 0, user, pointed_thing)
+            dt( 0, 0, user, pointed_thing)
+            dt( 1, 0, user, pointed_thing)
+            ds( 2, 0, user, pointed_thing)
+
+            ds(-2, 1, user, pointed_thing)
+            dt(-1, 1, user, pointed_thing)
+            dt( 0, 1, user, pointed_thing)
+            dt( 1, 1, user, pointed_thing)
+            dt( 2, 1, user, pointed_thing)
+            ds( 3, 1, user, pointed_thing)
+
+            ds(-1, 2, user, pointed_thing)
+            dt( 0, 2, user, pointed_thing)
+            dt( 1, 2, user, pointed_thing)
+            dt( 2, 2, user, pointed_thing)
+            ds( 3, 2, user, pointed_thing)
+
+            add_ref(  1, 2, user, pointed_thing)
         end
-        add_light(2, user, pointed_thing)                   -- change to 1 for more frequent lights
+        add_light(2, user, pointed_thing)                       -- change to 1 for more frequent lights
     end
 end
 
@@ -317,7 +1039,7 @@ for i,img in ipairs(images) do
 
     minetest.register_tool("tunnelmaker:"..(i-1),
     {
-        description = "Tunnel Maker (easily create curved tunnels)",
+        description = "Tunnel Maker",
         groups = {not_in_creative_inventory=inv},
         inventory_image = img,
         wield_image = img,
