@@ -506,7 +506,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
             et(-3, 1, user, pointed_thing)
             et(-3, 2, user, pointed_thing)
             et(-3, 3, user, pointed_thing)
-            es( 3, 4, user, pointed_thing)
+            es(-3, 4, user, pointed_thing)
 
             ds(-1,-2, user, pointed_thing)
             
