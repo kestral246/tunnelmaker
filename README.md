@@ -25,6 +25,14 @@ Features
 - Works outside of tunnels to clear ground and provide cuts and fills.
 
 
+New features
+------------
+- I added a biome check when using minetest version 0.5.x, which will change the fill to desert stones for desert biomes.  For version 0.4.x, tunnelmaker will still work, but will continue to just use regular stone fill.
+- I updated this mod to check for water while tunneling.  Tunnelmaker will now add a glass wall around the tunnel to prevent water from entering the tunnel.  A temporary glass endcap is also added to the end of the tunnel.  What this means is that it is now possible to effectively dig tunnels through water.  Now you can easily run trains to your underwater sea bases.
+
+![Underwater tunnel](images/underwater_tunnel.png "Underwater tunnel")
+
+
 How to use
 ----------
 Minetest needs to be in creative mode for this mod to work—it is too overpowered otherwise.
@@ -60,7 +68,7 @@ Switched digging function from dig_node to node_dig.  This was based on what mat
 
 Digging pattern reference
 -------------------------
-Here are all sixteen possible digging patterns for reference.  The white blocks have a height of 5 blocks, while the light gray blocks on the sides have a height of 4 blocks.  Ground fill is only done in white block area.
+Here are all sixteen possible digging patterns for reference, updated to show the changes needed to deal with water.  With no water nearby, the resulting tunnel is almost the same as before—a couple of slight irregularities have been fixed.
 
 ![Digging patterns](images/digging_patterns.png "Digging patterns")
 
