@@ -27,6 +27,10 @@ Features
 
 New features
 ------------
+- Try to play nicer with already placed advtrains track (dtrack*).
+- Don't dig dtrack nodes.  This allows expanding or extending tunnels where track has already been laid.
+- If pointing to dtrack node, assume user actually wants to point to ground below track.
+
 - I added a biome check when using minetest version 0.5.x, which will change the fill to desert stones for desert biomes.  For version 0.4.x, tunnelmaker will still work, but will continue to just use regular stone fill.
 - I updated this mod to check for water while tunneling.  Tunnelmaker will now add a glass wall around the tunnel to prevent water from entering the tunnel.  A temporary glass endcap is also added to the end of the tunnel.  What this means is that it is now possible to effectively dig tunnels through water.  Now you can easily run trains to your underwater sea bases.
 
