@@ -90,12 +90,15 @@ minetest.register_globalstep(function(dtime)
         end --if wielded else
 
         --don't mess with the rest of this if they don't have a tunnelmaker
+        --update to remove legacy get_look_yaw function
         if gotatunnelmaker then
-            local pos = player:getpos()
-            local dir = player:get_look_yaw()
-            local angle_north = 0
-            local angle_dir = 90 - math.deg(dir)
-            local angle_relative = (angle_north - angle_dir) % 360
+--            local pos = player:getpos()
+--            local dir = player:get_look_yaw()
+--            local angle_north = 0
+--            local angle_dir = 90 - math.deg(dir)
+--            local angle_relative = (angle_north - angle_dir) % 360
+            local dir = player:get_look_horizontal()
+            local angle_relative = math.deg(dir)
             local tunnelmaker_image = math.floor((angle_relative/22.5) + 0.5)%16
 
             --update tunnelmaker image to point at target
