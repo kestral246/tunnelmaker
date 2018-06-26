@@ -2,6 +2,17 @@
 -- Another tunnel digging mod for minetest.
 -- by David G (kestral246@gmail.com)
 
+-- Version 0.9.2
+-- Continue work making tunnelmaker play nice with advtrains track.
+-- Per Orwell's request, changed method for determining if node is advtrains track.
+-- Instead of searching for dtrack in name of node,
+-- I check whether the node belongs to the advtrains_track group using:
+--     if minetest.registered_nodes[name].groups.advtrains_track == 1 then
+--
+-- Note that one can't right click ATC track with tunnelmaker, that track overrides right click.
+-- Trying to right click on slope track probably won't do what is wanted.  Right now it treats
+-- it like any other track, and digs the ground level.
+
 -- Version 0.9.1
 -- 1. Try to play nicer with already placed advtrains track (dtrack*).
 --   A. Don't dig dtrack nodes.
@@ -160,10 +171,11 @@ end
 local dig_single = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
     local name = minetest.get_node(pos).name
+    local isAdvtrack = minetest.registered_nodes[name].groups.advtrains_track == 1
     if not minetest.is_protected(pos, user) then
         if string.match(name, "water") then
             minetest.set_node(pos, {name = "air"})
-        elseif name ~= "air" and name ~= "default:torch_ceiling" and not string.match(name, "dtrack") then
+        elseif name ~= "air" and name ~= "default:torch_ceiling" and not isAdvtrack then
             minetest.node_dig(pos, minetest.get_node(pos), user)
         end
     end
@@ -484,9 +496,9 @@ for i,img in ipairs(images) do
             local creative_enabled = (creative and creative.is_enabled_for
                             and creative.is_enabled_for(player_name))
             if creative_enabled and pointed_thing.type=="node" then
-                -- If node is dtrack, I lower positions of pointed_thing to right below dtrack, but keep name the same.
+                -- if advtrains_track, I lower positions of pointed_thing to right below track, but keep name the same.
                 local name = minetest.get_node(pointed_thing.under).name
-                if string.match(name, "dtrack") then
+                if minetest.registered_nodes[name].groups.advtrains_track == 1 then
                     pointed_thing.under = vector.add(pointed_thing.under, {x=0, y=-1, z=0})
                     pointed_thing.above = vector.add(pointed_thing.above, {x=0, y=-1, z=0})  -- don't currently use this
                 end
