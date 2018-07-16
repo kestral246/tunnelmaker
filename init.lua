@@ -2,6 +2,10 @@
 -- Another tunnel digging mod for minetest.
 -- by David G (kestral246@gmail.com)
 
+-- Version 0.9.3
+-- Tweak cdir == 2 (nw) digging pattern.
+-- Clean up some old debug statements.
+
 -- Version 0.9.2
 -- Continue work making tunnelmaker play nice with advtrains track.
 -- Per Orwell's request, changed method for determining if node is advtrains track.
@@ -103,11 +107,6 @@ minetest.register_globalstep(function(dtime)
         --don't mess with the rest of this if they don't have a tunnelmaker
         --update to remove legacy get_look_yaw function
         if gotatunnelmaker then
---            local pos = player:getpos()
---            local dir = player:get_look_yaw()
---            local angle_north = 0
---            local angle_dir = 90 - math.deg(dir)
---            local angle_relative = (angle_north - angle_dir) % 360
             local dir = player:get_look_horizontal()
             local angle_relative = math.deg(dir)
             local tunnelmaker_image = math.floor((angle_relative/22.5) + 0.5)%16
@@ -241,14 +240,12 @@ local check_ceiling = function(x, y, z, user, pointed_thing)
     replace_ceiling(x, y, z, user, pointed_thing)
     -- then make sure ceiling isn't water
     check_for_water(x, y, z, user, pointed_thing)
-    -- check_for_water_stone(x, y, z, user, pointed_thing) --debug
 end
 
 -- add wall if necessary to protect from water (pink)
 local aw = function(x, z, user, pointed_thing)
     for y=0, 5 do
         check_for_water(x, y, z, user, pointed_thing)
-        -- check_for_water_stone(x, y, z, user, pointed_thing)  --debug
     end
 end
 
@@ -256,7 +253,6 @@ end
 local es = function(x, z, user, pointed_thing)
     for y=0, 5 do
         check_for_water(x, y, z, user, pointed_thing)
-        -- check_for_water_glass(x, y, z, user, pointed_thing)     --debug
     end
 end
 
@@ -264,7 +260,6 @@ end
 local et = function(x, z, user, pointed_thing)
     for y=0, 6 do
         check_for_water(x, y, z, user, pointed_thing)
-        -- check_for_water_glass(x, y, z, user, pointed_thing)     --debug
     end
 end
 
@@ -273,12 +268,10 @@ local ds = function(x, z, user, pointed_thing)
     local height = 4
     check_ceiling(x, height+1, z, user, pointed_thing)
     check_for_water(x, height+2, z, user, pointed_thing)
-    -- check_for_water_stone(x, height+2, z, user, pointed_thing)  --debug
     for y=height, 1, -1 do          -- dig from high to low
         dig_single(x, y, z, user, pointed_thing)
     end
     check_for_water(x, 0, z, user, pointed_thing)
-    -- check_for_water_stone(x, 0, z, user, pointed_thing) --debug
 end
 
 -- dig tall tunnel (light yellow)
@@ -324,7 +317,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {ds,-1,-2},
                          {ds,-2,-1},{dt,-1,-1},
                          {ds,-3, 0},{dt,-2, 0},{dt,-1, 0},{dt, 0, 0},
-                         {ds,-1, 1},{dt, 0, 1},{dt, 1, 1},{ds, 2, 1},
+                         {dt,-1, 1},{dt, 0, 1},{dt, 1, 1},{ds, 2, 1},
                          {dt, 0, 2},{ds, 1, 2},
                          {ds, 0, 3},
                          {add_ref,-1, 1}}, user, pointed_thing)
