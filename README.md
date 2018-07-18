@@ -36,7 +36,7 @@ New features
 ------------
 - Full support for digging tunnels up or down, supporting advtrains slope tracks.
 
-![Underwater tunnel](images/underwater_tunnel.png "Underwater tunnel")
+![Downslope tunnel](images/downslope_tunnel.png "Downslope tunnel")
 
 
 How to use
