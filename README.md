@@ -24,15 +24,17 @@ Features
 - Fills in holes in flooring with stone.
 - Works outside of tunnels to clear ground and provide cuts and fills.
 
-
-New features
-------------
 - Try to play nicer with already placed advtrains track (dtrack*).
 - Don't dig dtrack nodes.  This allows expanding or extending tunnels where track has already been laid.
 - If pointing to dtrack node, assume user actually wants to point to ground below track.
 
 - I added a biome check when using minetest version 0.5.x, which will change the fill to desert stones for desert biomes.  For version 0.4.x, tunnelmaker will still work, but will continue to just use regular stone fill.
 - I updated this mod to check for water while tunneling.  Tunnelmaker will now add a glass wall around the tunnel to prevent water from entering the tunnel.  A temporary glass endcap is also added to the end of the tunnel.  What this means is that it is now possible to effectively dig tunnels through water.  Now you can easily run trains to your underwater sea bases.
+
+
+New features
+------------
+- Full support for digging tunnels up or down, supporting advtrains slope tracks.
 
 ![Underwater tunnel](images/underwater_tunnel.png "Underwater tunnel")
 
@@ -51,7 +53,13 @@ To use this mod, move your character to the existing end of the tunnel, highligh
 
 Using left-click digs similarly to a wooden pickaxe, which is useful for making minor adjustments.
 
-To increase the grade, place a block on the gray node and select that before right-clicking. To decrease the grade, dig out the gray node and select the lower node before right-clicking. (Note that advtrains only supports slopes for 0° and 45° track.)
+Increasing or decreasing grade is done with the sneak key (shift).  Highlight the node and then hold the sneak key while right-clicking tunnelmaker.
+The icon on the display will show a yellow 'U'.  Releasing the sneak key and repeating the right-click will dig up one node.
+Repeatedly right clicking with the sneak key will cycle between 'U' (up), 'D' (down), and off (horizontal) modes.
+In addition, rotating to a new direction, or moving the character by a bit, will reset the tool to horizontal. 
+
+*Note that advance train slope track only exist for orthogonal and 45 degree directions, and requires at least one horizontal track of the same direction at the top or bottom
+before a turn can be made.*
 
 
 ![Turns from 0°](images/dir0.png "Turns from 0")
