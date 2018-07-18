@@ -1,0 +1,73 @@
+tunnelmaker change log
+
+-- Version 0.9.4
+-- Major update to build in support for digging up and down.
+-- Digging up and down only supports orthogonal and 45deg directions to match advtrains track.
+-- (Note: advtrains track requires at least one horizontal track matching slope before making any turns.)
+-- To select updown direction, hold sneak key (shift) while right-clicking tunnelmaker.
+-- One click selects up (Yellow 'U' on icon), second click selects down (Yellow 'D' on icon),
+-- third click returns back to horizontal (no letter on icon).
+-- Updown state can also be reset by rotating to different icon, or moving by some amount (still tuning this).
+-- Once updown state is selected, release sneak key and use right-click like normal.
+-- After digging, updown state will also be reset to horizontal.
+-- Known changes/issues caused by using sneak key:
+--   • Can't dig up or down while flying.
+--   • Digall won't apply its function when right-clicking tunnelmaker.
+--   • Can't sneak right-click on ATC track to dig below them.
+
+-- Version 0.9.3
+-- Tweak cdir == 2 (nw) digging pattern.
+-- Clean up some old debug statements.
+
+-- Version 0.9.2
+-- Continue work making tunnelmaker play nice with advtrains track.
+-- Per Orwell's request, changed method for determining if node is advtrains track.
+-- Instead of searching for dtrack in name of node,
+-- I check whether the node belongs to the advtrains_track group using:
+--     if minetest.registered_nodes[name].groups.advtrains_track == 1 then
+--
+-- Note that one can't right click ATC track with tunnelmaker, that track overrides right click.
+-- Trying to right click on slope track probably won't do what is wanted.  Right now it treats
+-- it like any other track, and digs the ground level.
+
+-- Version 0.9.1
+-- 1. Try to play nicer with already placed advtrains track (dtrack*).
+--   A. Don't dig dtrack nodes.
+--      This allows expanding or extending tunnels where track has already been laid.
+--    However this causes issues when using tunnelmaker to raise or lower track.
+--      Trying to dig tunnel one node above track won't fill where placed track exists.
+--      Trying to dig tunnel one node below track will cause existing track to drop.
+--   B. If pointing to dtrack node, assume user actually wants to point to ground below track.
+--      Lower positions of pointed_thing by one node, while keeping name the same.
+--      This assumes that existing track is sitting on valid node.
+-- 2. Restruction direction code to make it much shorter.
+-- 3. Fixed bug in implementation of SSW digging pattern.
+--
+-- Version 0.9.0
+-- 1. Updated digging patterns to fix minor irregularities.
+-- 2. Added protections for tunneling in water.
+--      Adds glass walls around tunnel whenever there is water.
+--      Adds glass endcap at end to protect from flooding while tunneling.
+--      Note that this can place undesired glass when digging next to ground-level water. This
+--        won't happen as long as you're one node higher than the water.
+-- 3. Restructured code again.  Code is longer, but simpler to understand.
+
+-- Version 0.8.1
+-- Test if air before digging.  Cleans up air not diggable INFO messages.
+-- Added test for desert-type biomes, which lets me start using biome-appropriate fill.
+--   needs minetest 0.5.0+ to correctly flag desert biomes
+--   however, if api doesn't exist (using 0.4.x), test just always returns false
+
+-- Version 0.8.0
+-- Changed from dig_node to node_dig (based on what matyilona200 did for the Tunneltest mod)
+-- Places only a single instance of each type of block dug in inventory
+-- Doesn't cause blocks to drop in 0.5.0-dev
+-- Works with digall mod, but make sure it's deactivated before tunneling!
+
+-- Version 0.7.0
+-- Added test for fallable blocks in ceiling and replace them with cobblestone.
+-- Fixed bug where I was digging from lower blocks to higher blocks.
+-- Simplified and cleaned up tunneling code.
+
+-- Version 0.6.0
+-- Increased width and height of tunnel created.
