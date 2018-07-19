@@ -1,8 +1,11 @@
 -- tunnelmaker
 -- Another tunnel digging mod for minetest.
+-- Digs tunnels and builds simple bridges for advtrains track, supporting
+-- all 16 track directions, along with slopes up and down.
+-- 
 -- by David G (kestral246@gmail.com)
 
--- Version 0.9.4 - 2018-07-18
+-- Version 0.9.5 - 2018-07-19
 
 -- based on compassgps 2.7 and compass 0.5
 
@@ -24,7 +27,7 @@ minetest.register_on_joinplayer(function(player)
     tunnelmaker[pname] = {updown = 0, lastdir = -1, lastpos = {x = 0, y = 0, z = 0}}
 end)
 
-local activewidth=8 --until I can find some way to get it from minetest
+local activewidth=8  --until I can find some way to get it from minetest
 
 minetest.register_globalstep(function(dtime)
     local players  = minetest.get_connected_players()
@@ -50,16 +53,15 @@ minetest.register_globalstep(function(dtime)
                 for i,stack in ipairs(player:get_inventory():get_list("main")) do
                     if i<=activewidth and string.sub(stack:get_name(), 0, 12) == "tunnelmaker:" then
                         activeinv=stack  --store the stack so we can update it later with new image
-                        stackidx=i --store the index so we can add image at correct location
+                        stackidx=i  --store the index so we can add image at correct location
                         gotatunnelmaker=true
                         break
-                    end --if i<=activewidth
-                end --for loop
-            end -- get_inventory
-        end --if wielded else
+                    end
+                end
+            end
+        end
 
         --don't mess with the rest of this if they don't have a tunnelmaker
-        --update to remove legacy get_look_yaw function
         if gotatunnelmaker then
             local pname = player:get_player_name()
             local dir = player:get_look_horizontal()
@@ -75,12 +77,12 @@ minetest.register_globalstep(function(dtime)
                                     (player:getpos().z - tunnelmaker[pname].lastpos.z))
             
             -- If rotate to different direction, or move far enough from set position, reset to horizontal
-            if rawdir ~= tunnelmaker[pname].lastdir or delta > 0.2 then -- tune to make distance moved feel right
+            if rawdir ~= tunnelmaker[pname].lastdir or delta > 0.2 then  -- tune to make distance moved feel right
                 tunnelmaker[pname].lastdir = rawdir
                 -- tunnelmaker[pname].lastpos = pos
-                tunnelmaker[pname].updown = 0                           -- reset updown to horizontal
+                tunnelmaker[pname].updown = 0  -- reset updown to horizontal
             end
-            local tunnelmaker_image = rawdir                            -- horizontal digging maps to 0-15
+            local tunnelmaker_image = rawdir  -- horizontal digging maps to 0-15
             if tunnelmaker[pname].updown ~= 0 and rawdir % 2 == 0 then  -- only 0,45,90 are updown capable (U:16-23,D:24-31)
                 tunnelmaker_image = 16 + (tunnelmaker[pname].updown - 1) * 8 + (rawdir / 2)
             end
@@ -89,10 +91,10 @@ minetest.register_globalstep(function(dtime)
                 player:set_wielded_item("tunnelmaker:"..tunnelmaker_image)
             elseif activeinv then
                 player:get_inventory():set_stack("main",stackidx,"tunnelmaker:"..tunnelmaker_image)
-            end --if wielded elsif activin
-        end --if gotatunnelmaker
-    end --for i,player in ipairs(players)
-end) -- register_globalstep
+            end
+        end
+    end
+end)
 
 local images = {
         "tunnelmaker_0.png",
@@ -141,7 +143,7 @@ local is_desert = function(pos)
 end
 
 -- add cobble reference block to point to next target location and to aid laying track
--- in minetest 0.5.0+, desert biomes will use desert_cobble
+-- in minetest 5.0+, desert biomes will use desert_cobble
 local add_ref = function(x, y0, y1, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y0, z=z})
     if not minetest.is_protected(pos, user) then
@@ -153,29 +155,25 @@ local add_ref = function(x, y0, y1, z, user, pointed_thing)
     end
 end
 
--- delete single node, including water, but not torches or air
--- test for air, since air is not diggable
--- update: don't dig advtrain track
+-- dig single node, but not torches, air (not diggable), or advtrain track
 local dig_single = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
     local name = minetest.get_node(pos).name
     local isAdvtrack = minetest.registered_nodes[name].groups.advtrains_track == 1
     if not minetest.is_protected(pos, user) then
-        if string.match(name, "water") then
-            minetest.set_node(pos, {name = "air"})
-        elseif name ~= "air" and name ~= "default:torch_ceiling" and not isAdvtrack then
+        if name ~= "air" and name ~= "default:torch_ceiling" and not isAdvtrack then
             minetest.node_dig(pos, minetest.get_node(pos), user)
         end
     end
 end
 
--- add stone floor, if air or water or glass
--- in minetest 0.5.0+, desert biomes will use desert_stone
+-- add stone floor if air or water
+-- in minetest 5.0+, desert biomes will use desert_stone
 local replace_floor = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
     if not minetest.is_protected(pos, user) then
         local name = minetest.get_node(pos).name
-        if name == "air" or string.match(name, "water") or name == "default:glass" then
+        if name == "air" or string.match(name, "water") then
             if is_desert(pos) then
                 minetest.set_node(pos, {name = "default:desert_stone"})
             else
@@ -186,12 +184,13 @@ local replace_floor = function(x, y, z, user, pointed_thing)
 end
 
 -- check for blocks that can fall in future ceiling and convert to cobble before digging
--- in minetest 0.5.0+, desert biomes will use desert_cobble
+-- in minetest 5.0+, desert biomes will use desert_cobble
 local replace_ceiling = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
     local ceiling = minetest.get_node(pos).name
     if (ceiling == "default:sand" or ceiling == "default:desert_sand" or ceiling == "default:silver_sand" or
-            ceiling == "default:gravel") and not minetest.is_protected(pos, user) then
+            ceiling == "default:gravel" or string.match(ceiling, "water")) and
+            not minetest.is_protected(pos, user) then
         if is_desert(pos) then
             minetest.set_node(pos, {name = "default:desert_cobble"})
         else
@@ -219,110 +218,23 @@ local add_light = function(spacing, user, pointed_thing)
     end
 end
 
--- build glass barrier to water
--- if node is water, replace with glass
-local check_for_water = function(x, y, z, user, pointed_thing)
-    local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-    if not minetest.is_protected(pos, user) then
-        local name = minetest.get_node(pos).name
-        if string.match(name, "water") then
-            minetest.set_node(pos, {name = "default:glass"})
-        end
-        -- minetest.set_node(pos, {name = "small:box"})    -- debug code
-    end
-end
-
--- convenience function to call all the ceiling checks
-local check_ceiling = function(x, y, z, user, pointed_thing)
-    -- first check that ceiling isn't node that can fall
-    replace_ceiling(x, y, z, user, pointed_thing)
-    -- then make sure ceiling isn't water
-    check_for_water(x, y, z, user, pointed_thing)
-end
-
--- The wall and endcap functions replace water nodes with glass
--- They build a continuous column from y0 to y1 (e.g., 0:6).
-
--- add wall (pink)
-local aw = function(x, y0, y1, z, user, pointed_thing)
-    for y=y0, y1 do
-        check_for_water(x, y, z, user, pointed_thing)
-    end
-end
-
--- add endcap (light orange shorter, darker orange taller)
-local ec = function(x, y0, y1, z, user, pointed_thing)
-    for y=y0, y1 do
-        check_for_water(x, y, z, user, pointed_thing)
-    end
-end
-
--- The dig family of functions come in two varieties, which only differ on
--- how they deal with the ground level.  The y0 and y1 are specified by how
--- much to dig, including ground (e.g., 0:5), with ceiling added above.
--- The side versions (ds, dr, dq) just check ground for water
--- The tall versions (dt, du) replace missing ground with cobblestone
-
--- dig Side, with two on top (light gray)
+-- dig side column, don't replace floor (light gray)
 local ds = function(x, y0, y1, z, user, pointed_thing)
     local height = y1
-    check_ceiling(x, height+1, z, user, pointed_thing)
-    check_for_water(x, height+2, z, user, pointed_thing)
+    replace_ceiling(x, height+1, z, user, pointed_thing)
     for y=height, y0+1, -1 do          -- dig from high to low
         dig_single(x, y, z, user, pointed_thing)
     end
-    check_for_water(x, y0, z, user, pointed_thing)
 end
 
--- dig thRee, with three on top
-local dr = function(x, y0, y1, z, user, pointed_thing)
-    local height = y1
-    check_ceiling(x, height+1, z, user, pointed_thing)
-    check_for_water(x, height+2, z, user, pointed_thing)
-    check_for_water(x, height+3, z, user, pointed_thing)
-    for y=height, y0+1, -1 do          -- dig from high to low
-        dig_single(x, y, z, user, pointed_thing)
-    end
-    check_for_water(x, y0, z, user, pointed_thing)
-end
-
--- dig Quad, with two on top and two on bottom
-local dq = function(x, y0, y1, z, user, pointed_thing)
-    local height = y1
-    check_ceiling(x, height+1, z, user, pointed_thing)
-    check_for_water(x, height+2, z, user, pointed_thing)
-    for y=height, y0+1, -1 do          -- dig from high to low
-        dig_single(x, y, z, user, pointed_thing)
-    end
-    check_for_water(x, y0, z, user, pointed_thing)
-    check_for_water(x, y0-1, z, user, pointed_thing)
-end
-
--- dig Tall, with one on top (light yellow, origin, or next ref)
+-- dig tall column, fill in floor if air (light yellow, origin, or next ref)
 local dt = function(x, y0, y1, z, user, pointed_thing)
     local height = y1
-    check_ceiling(x, height+1, z, user, pointed_thing)
+    replace_ceiling(x, height+1, z, user, pointed_thing)
     for y=height, y0+1, -1 do          -- dig from high to low
         dig_single(x, y, z, user, pointed_thing)
     end
     replace_floor(x, y0, z, user, pointed_thing)
-end
-
--- dig tUu, with two on top
-local du = function(x, y0, y1, z, user, pointed_thing)
-    local height = y1
-    check_ceiling(x, height+1, z, user, pointed_thing)
-    check_for_water(x, height+2, z, user, pointed_thing)
-    for y=height, y0+1, -1 do          -- dig from high to low
-        dig_single(x, y, z, user, pointed_thing)
-    end
-    replace_floor(x, y0, z, user, pointed_thing)
-end
-
--- dig null Ceiling check (only needed when going from 45 horiz to 45 up)
-local dc = function(x, y0, y1, z, user, pointed_thing)
-    local height = y1
-    check_ceiling(x, height+1, z, user, pointed_thing)
 end
 
 -- To shorten the code, this function takes a list of lists with {function, x-coord, y-coord} and executes them in sequence.
@@ -337,28 +249,19 @@ local dig_tunnel = function(cdir, user, pointed_thing)
     if minetest.check_player_privs(user, "tunneling") then
 -- Dig horizontal
         if cdir == 0 then  -- pointed north
-            run_list(   {{aw,-3, 0, 5, 0},{aw,-3, 0, 5, 1},{aw,-3, 0, 5, 2},
-                         {aw, 3, 0, 5, 0},{aw, 3, 0, 5, 1},{aw, 3, 0, 5, 2},
-                         {ec,-3, 0, 5, 3},{ec,-2, 0, 6, 3},{ec,-1, 0, 6, 3},{ec, 0, 0, 6, 3},{ec, 1, 0, 6, 3},{ec, 2, 0, 6, 3},{ec, 3, 0, 5, 3},
-                         {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
+            run_list(   {{ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {ds,-2, 0, 4, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
                          {ds,-2, 0, 4, 2},{dt,-1, 0, 5, 2},{dt, 0, 0, 5, 2},{dt, 1, 0, 5, 2},{ds, 2, 0, 4, 2},
                          {add_ref, 0, 0, 0, 2}}, user, pointed_thing)
 
         elseif cdir == 1 then  -- pointed north-northwest
-            run_list(   {{aw,-3, 0, 5,-1},{aw,-3, 0, 6, 0},{aw,-4, 0, 5, 0},{aw,-4, 0, 5, 1},{aw,-4, 0, 5, 2},
-                         {aw, 3, 0, 5, 1},{aw, 3, 0, 5, 2},{aw, 2, 0, 6, 2},{aw, 2, 0, 5, 3},
-                         {ec,-4, 0, 5, 3},{ec,-3, 0, 6, 3},{ec,-2, 0, 6, 3},{ec,-1, 0, 6, 3},{ec, 0, 0, 6, 3},{ec, 1, 0, 6, 3},
-                         {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},
+            run_list(   {{ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},
                          {ds,-3, 0, 4, 1},{dt,-2, 0, 5, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
                          {ds,-3, 0, 4, 2},{dt,-2, 0, 5, 2},{dt,-1, 0, 5, 2},{dt, 0, 0, 5, 2},{ds, 1, 0, 4, 2},
                          {add_ref,-1, 0, 0, 2}}, user, pointed_thing)
 
         elseif cdir == 2 then  -- pointed northwest
-            run_list(   {{aw,-2, 0, 5,-3},{aw,-2, 0, 6,-2},{aw,-3, 0, 5,-2},{aw,-3, 0, 6,-1},{aw,-4, 0, 5,-1},
-                         {aw, 3, 0, 5, 2},{aw, 2, 0, 6, 2},{aw, 2, 0, 5, 3},{aw, 1, 0, 6, 3},{aw, 1, 0, 5, 4},
-                         {ec,-4, 0, 5, 0},{ec,-4, 0, 5, 1},{ec,-3, 0, 6, 1},{ec,-2, 0, 6, 1},{ec,-2, 0, 6, 2},{ec,-1, 0, 6, 2},{ec,-1, 0, 6, 3},{ec,-1, 0, 5, 4},{ec, 0, 0, 5, 4},
-                         {ds,-1, 0, 4,-2},
+            run_list(   {{ds,-1, 0, 4,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},
                          {ds,-3, 0, 4, 0},{dt,-2, 0, 5, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},
                          {dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
@@ -367,10 +270,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref,-1, 0, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 3 then  -- pointed west-northwest
-            run_list(   {{aw,-1, 0, 5,-3},{aw,-2, 0, 5,-3},{aw,-2, 0, 6,-2},{aw,-3, 0, 5,-2},
-                         {aw, 1, 0, 5, 3},{aw, 0, 0, 6, 3},{aw, 0, 0, 5, 4},{aw,-1, 0, 5, 4},{aw,-2, 0, 5, 4},
-                         {ec,-3, 0, 6,-1},{ec,-3, 0, 6, 0},{ec,-3, 0, 6, 1},{ec,-3, 0, 6, 2},{ec,-3, 0, 6, 3},{ec,-3, 0, 5, 4},
-                         {ds,-1, 0, 4,-2},
+            run_list(   {{ds,-1, 0, 4,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},
                          {dt,-2, 0, 5, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},
                          {dt,-2, 0, 5, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},
@@ -379,10 +279,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref,-2, 0, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 4 then  -- pointed west
-            run_list(   {{aw, 0, 0, 5,-3},{aw,-1, 0, 5,-3},{aw,-2, 0, 5,-3},
-                         {aw, 0, 0, 5, 3},{aw,-1, 0, 5, 3},{aw,-2, 0, 5, 3},
-                         {ec,-3, 0, 5,-3},{ec,-3, 0, 6,-2},{ec,-3, 0, 6,-1},{ec,-3, 0, 6, 0},{ec,-3, 0, 6, 1},{ec,-3, 0, 6, 2},{ec,-3, 0, 5, 3},
-                         {ds,-2, 0, 4,-2},{ds,-1, 0, 4,-2},{ds, 0, 0, 4,-2},
+            run_list(   {{ds,-2, 0, 4,-2},{ds,-1, 0, 4,-2},{ds, 0, 0, 4,-2},
                          {dt,-2, 0, 5,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},
                          {dt,-2, 0, 5, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},
                          {dt,-2, 0, 5, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},
@@ -390,10 +287,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref,-2, 0, 0, 0}}, user, pointed_thing)
 
         elseif cdir == 5 then  -- pointed west-southwest
-            run_list(   {{aw, 1, 0, 5,-3},{aw, 0, 0, 6,-3},{aw, 0, 0, 5,-4},{aw,-1, 0, 5,-4},{aw,-2, 0, 5,-4},
-                         {aw,-1, 0, 5, 3},{aw,-2, 0, 5, 3},{aw,-2, 0, 6, 2},{aw,-3, 0, 5, 2},
-                         {ec,-3, 0, 5,-4},{ec,-3, 0, 6,-3},{ec,-3, 0, 6,-2},{ec,-3, 0, 6,-1},{ec,-3, 0, 6, 0},{ec,-3, 0, 6, 1},
-                         {ds,-2, 0, 4,-3},{ds,-1, 0, 4,-3},
+            run_list(   {{ds,-2, 0, 4,-3},{ds,-1, 0, 4,-3},
                          {dt,-2, 0, 5,-2},{dt,-1, 0, 5,-2},{ds, 0, 0, 4,-2},
                          {dt,-2, 0, 5,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},
                          {dt,-2, 0, 5, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},
@@ -402,10 +296,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref,-2, 0, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 6 then  -- pointed southwest
-            run_list(   {{aw, 3, 0, 5,-2},{aw, 2, 0, 6,-2},{aw, 2, 0, 5,-3},{aw, 1, 0, 6,-3},{aw, 1, 0, 5,-4},
-                         {aw,-2, 0, 5, 3},{aw,-2, 0, 6, 2},{aw,-3, 0, 5, 2},{aw,-3, 0, 6, 1},{aw,-4, 0, 5, 1},
-                         {ec, 0, 0, 5,-4},{ec,-1, 0, 5,-4},{ec,-1, 0, 6,-3},{ec,-1, 0, 6,-2},{ec,-2, 0, 6,-2},{ec,-2, 0, 6,-1},{ec,-3, 0, 6,-1},{ec,-4, 0, 5,-1},{ec,-4, 0, 5, 0},
-                         {ds, 0, 0, 4,-3},
+            run_list(   {{ds, 0, 0, 4,-3},
                          {dt, 0, 0, 5,-2},{ds, 1, 0, 4,-2},
                          {dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {ds,-3, 0, 4, 0},{dt,-2, 0, 5, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},
@@ -414,37 +305,25 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref,-1, 0, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 7 then  -- pointed south-southwest
-            run_list(   {{aw, 3, 0, 5,-1},{aw, 3, 0, 5,-2},{aw, 2, 0, 6,-2},{aw, 2, 0, 5,-3},
-                         {aw,-3, 0, 5, 1},{aw,-3, 0, 6, 0},{aw,-4, 0, 5, 0},{aw,-4, 0, 5,-1},{aw,-4, 0, 5,-2},
-                         {ec, 1, 0, 6,-3},{ec, 0, 0, 6,-3},{ec,-1, 0, 6, -3},{ec,-2, 0, 6,-3},{ec,-3, 0, 6,-3},{ec,-4, 0, 5,-3},
-                         {ds,-3, 0, 4,-2},{dt,-2, 0, 5,-2},{dt,-1, 0, 5,-2},{dt, 0, 0, 5,-2},{ds, 1, 0, 4,-2},
+            run_list(   {{ds,-3, 0, 4,-2},{dt,-2, 0, 5,-2},{dt,-1, 0, 5,-2},{dt, 0, 0, 5,-2},{ds, 1, 0, 4,-2},
                          {ds,-3, 0, 4,-1},{dt,-2, 0, 5,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},
                          {add_ref,-1, 0, 0,-2}}, user, pointed_thing)
 
         elseif cdir == 8 then  -- pointed south
-            run_list(   {{aw, 3, 0, 5, 0},{aw, 3, 0, 5,-1},{aw, 3, 0, 5,-2},
-                         {aw,-3, 0, 5, 0},{aw,-3, 0, 5,-1},{aw,-3, 0, 5,-2},
-                         {ec, 3, 0, 5,-3},{ec, 2, 0, 6,-3},{ec, 1, 0, 6,-3},{ec, 0, 0, 6,-3},{ec,-1, 0, 6,-3},{ec,-2, 0, 6,-3},{ec,-3, 0, 5,-3},
-                         {ds,-2, 0, 4,-2},{dt,-1, 0, 5,-2},{dt, 0, 0, 5,-2},{dt, 1, 0, 5,-2},{ds, 2, 0, 4,-2},
+            run_list(   {{ds,-2, 0, 4,-2},{dt,-1, 0, 5,-2},{dt, 0, 0, 5,-2},{dt, 1, 0, 5,-2},{ds, 2, 0, 4,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {add_ref,0, 0, 0,-2}}, user, pointed_thing)
 
         elseif cdir == 9 then  -- pointed south-southeast
-            run_list(   {{aw, 3, 0, 5, 1},{aw, 3, 0, 6, 0},{aw, 4, 0, 5, 0},{aw, 4, 0, 5,-1},{aw, 4, 0, 5,-2},
-                         {aw,-3, 0, 5,-1},{aw,-3, 0, 5,-2},{aw,-2, 0, 6,-2},{aw,-2, 0, 5,-3},
-                         {ec, 4, 0, 5,-3},{ec, 3, 0, 6,-3},{ec, 2, 0, 6,-3},{ec, 1, 0, 6,-3},{ec, 0, 0, 6,-3},{ec,-1, 0, 6,-3},
-                         {ds,-1, 0, 4,-2},{dt, 0, 0, 5,-2},{dt, 1, 0, 5,-2},{dt, 2, 0, 5,-2},{ds, 3, 0, 4,-2},
+            run_list(   {{ds,-1, 0, 4,-2},{dt, 0, 0, 5,-2},{dt, 1, 0, 5,-2},{dt, 2, 0, 5,-2},{ds, 3, 0, 4,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{dt, 2, 0, 5,-1},{ds, 3, 0, 4,-1},
                          {dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {add_ref,1, 0, 0,-2}}, user, pointed_thing)
 
         elseif cdir == 10 then  -- pointed southeast
-            run_list(   {{aw, 2, 0, 5, 3},{aw, 2, 0, 6, 2},{aw, 3, 0, 5, 2},{aw, 3, 0, 6, 1},{aw, 4, 0, 5, 1},
-                         {aw,-3, 0, 5,-2},{aw,-2, 0, 6,-2},{aw,-2, 0, 5,-3},{aw,-1, 0, 6,-3},{aw,-1, 0, 5,-4},
-                         {ec, 4, 0, 5, 0},{ec, 4, 0, 5,-1},{ec, 3, 0, 6,-1},{ec, 2, 0, 6,-1},{ec, 2, 0, 6,-2},{ec, 1, 0, 6,-2},{ec, 1, 0, 6,-3},{ec, 1, 0, 5,-4},{ec, 0, 0, 5,-4},
-                         {ds, 0, 0, 4,-3},
+            run_list(   {{ds, 0, 0, 4,-3},
                          {ds,-1, 0, 4,-2},{dt, 0, 0, 5,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dt, 2, 0, 5, 0},{ds, 3, 0, 4, 0},
@@ -453,10 +332,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref, 1, 0, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 11 then  -- pointed east-southeast
-            run_list(   {{aw, 1, 0, 5, 3},{aw, 2, 0, 5, 3},{aw, 2, 0, 6, 2},{aw, 3, 0, 5, 2},
-                         {aw,-1, 0, 5,-3},{aw, 0, 0, 6,-3},{aw, 0, 0, 5,-4},{aw, 1, 0, 5,-4},{aw, 2, 0, 5,-4},
-                         {ec, 3, 0, 6, 1},{ec, 3, 0, 6, 0},{ec, 3, 0, 6,-1},{ec, 3, 0, 6,-2},{ec, 3, 0, 6,-3},{ec, 3, 0, 5,-4},
-                         {ds, 1, 0, 4,-3},{ds, 2, 0, 4,-3},
+            run_list(   {{ds, 1, 0, 4,-3},{ds, 2, 0, 4,-3},
                          {ds, 0, 0, 4,-2},{dt, 1, 0, 5,-2},{dt, 2, 0, 5,-2},
                          {dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{dt, 2, 0, 5,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dt, 2, 0, 5, 0},
@@ -464,10 +340,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {ds, 1, 0, 4, 2},
                          {add_ref, 2, 0, 0,-1}}, user, pointed_thing)
         elseif cdir == 12 then  -- pointed east
-            run_list(   {{aw, 0, 0, 5, 3},{aw, 1, 0, 5, 3},{aw, 2, 0, 5, 3},
-                         {aw, 0, 0, 5,-3},{aw, 1, 0, 5,-3},{aw, 2, 0, 5,-3},
-                         {ec, 3, 0, 5, 3},{ec, 3, 0, 6, 2},{ec, 3, 0, 6, 1},{ec, 3, 0, 6, 0},{ec, 3, 0, 6,-1},{ec, 3, 0, 6,-2},{ec, 3, 0, 5,-3},
-                         {ds, 0, 0, 4,-2},{ds, 1, 0, 4,-2},{ds, 2, 0, 4,-2},
+            run_list(   {{ds, 0, 0, 4,-2},{ds, 1, 0, 4,-2},{ds, 2, 0, 4,-2},
                          {dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{dt, 2, 0, 5,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dt, 2, 0, 5, 0},
                          {dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{dt, 2, 0, 5, 1},
@@ -475,10 +348,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref, 2, 0, 0, 0}}, user, pointed_thing)
 
         elseif cdir == 13 then  -- pointed east-northeast
-            run_list(   {{aw,-1, 0, 5, 3},{aw, 0, 0, 6, 3},{aw, 0, 0, 5, 4},{aw, 1, 0, 5, 4},{aw, 2, 0, 5, 4},
-                         {aw, 1, 0, 5,-3},{aw, 2, 0, 5,-3},{aw, 2, 0, 6,-2},{aw, 3, 0, 5,-2},
-                         {ec, 3, 0, 5, 4},{ec, 3, 0, 6, 3},{ec, 3, 0, 6, 2},{ec, 3, 0, 6, 1},{ec, 3, 0, 6, 0},{ec, 3, 0, 6,-1},
-                         {ds, 1, 0, 4,-2},
+            run_list(   {{ds, 1, 0, 4,-2},
                          {dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dt, 2, 0, 5, 0},
                          {dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{dt, 2, 0, 5, 1},
@@ -487,10 +357,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref, 2, 0, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 14 then  -- pointed northeast
-            run_list(   {{aw,-3, 0, 5, 2},{aw,-2, 0, 6, 2},{aw,-2, 0, 5, 3},{aw,-1, 0, 6, 3},{aw,-1, 0, 5, 4},
-                         {aw, 2, 0, 5,-3},{aw, 2, 0, 6,-2},{aw, 3, 0, 5,-2},{aw, 3, 0, 6,-1},{aw, 4, 0, 5,-1},
-                         {ec, 0, 0, 5, 4},{ec, 1, 0, 5, 4},{ec, 1, 0, 6, 3},{ec, 1, 0, 6, 2},{ec, 2, 0, 6, 2},{ec, 2, 0, 6, 1},{ec, 3, 0, 6, 1},{ec, 4, 0, 5, 1},{ec, 4, 0, 5, 0},
-                         {ds, 1, 0, 4,-2},
+            run_list(   {{ds, 1, 0, 4,-2},
                          {dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dt, 2, 0, 5, 0},{ds, 3, 0, 4, 0},
                          {ds,-2, 0, 4, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},
@@ -499,236 +366,176 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref, 1, 0, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 15 then  -- pointed north-northeast
-            run_list(   {{aw,-3, 0, 5, 1},{aw,-3, 0, 5, 2},{aw,-2, 0, 6, 2},{aw,-2, 0, 5, 3},
-                         {aw, 3, 0, 5,-1},{aw, 3, 0, 6, 0},{aw, 4, 0, 5, 0},{aw, 4, 0, 5, 1},{aw, 4, 0, 5, 2},
-                         {ec,-1, 0, 6, 3},{ec, 0, 0, 6, 3},{ec, 1, 0, 6, 3},{ec, 2, 0, 6, 3},{ec, 3, 0, 6, 3},{ec, 4, 0, 5, 3},
-                         {dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
+            run_list(   {{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {ds,-2, 0, 4, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{dt, 2, 0, 5, 1},{ds, 3, 0, 4, 1},
                          {ds,-1, 0, 4, 2},{dt, 0, 0, 5, 2},{dt, 1, 0, 5, 2},{dt, 2, 0, 5, 2},{ds, 3, 0, 4, 2},
                          {add_ref, 1, 0, 0, 2}}, user, pointed_thing)
 
--- Dig up
+-- Dig for slope up
         elseif cdir == 16 then  -- pointed north (0, dig up)
-            run_list(   {{aw,-3, 0, 6, 0},{aw,-3, 0, 6, 1},{aw,-3, 0, 6, 2},
-                         {aw, 3, 0, 6, 0},{aw, 3, 0, 6, 1},{aw, 3, 0, 6, 2},
-                         {ec,-3, 1, 6, 3},{ec,-2, 1, 7, 3},{ec,-1, 1, 7, 3},{ec, 0, 1, 7, 3},{ec, 1, 1, 7, 3},{ec, 2, 1, 7, 3},{ec, 3, 1, 6, 3},
-                         {dr,-2, 0, 4, 0},{du,-1, 0, 5, 0},{du, 0, 0, 5, 0},{du, 1, 0, 5, 0},{dr, 2, 0, 4, 0},
+            run_list(   {{ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {ds,-2, 0, 5, 1},{dt,-1, 0, 6, 1},{dt, 0, 0, 6, 1},{dt, 1, 0, 6, 1},{ds, 2, 0, 5, 1},
-                         {dq,-2, 1, 5, 2},{dt,-1, 1, 6, 2},{dt, 0, 1, 6, 2},{dt, 1, 1, 6, 2},{dq, 2, 1, 5, 2},
+                         {ds,-2, 1, 5, 2},{dt,-1, 1, 6, 2},{dt, 0, 1, 6, 2},{dt, 1, 1, 6, 2},{ds, 2, 1, 5, 2},
                          {add_ref, 0, 1, 0, 2},
                          {add_ref,-1, 0, 0, 2},  -- bridge support (left and right of nextref)
                          {add_ref, 1, 0, 0, 2}}, user, pointed_thing)
 
         elseif cdir == 17 then  -- pointed northwest (2, dig up)
-            run_list(   {{aw,-2, 0, 5,-3},{aw,-2, 0, 6,-2},{aw,-3, 0, 6,-2},{aw,-3, 0, 7,-1},{aw,-3, 1, 6,-2},
-                         {aw, 3, 0, 5, 2},{aw, 2, 0, 6, 2},{aw, 2, 0, 6, 3},{aw, 1, 0, 7, 3},{aw, 1, 1, 6, 4},
-                         {ec,-4, 1, 6, 0},{ec,-4, 1, 6, 1},{ec,-3, 1, 7, 1},{ec,-2, 1, 7, 1},{ec,-2, 1, 7, 2},{ec,-1, 1, 7, 2},{ec,-1, 1, 7, 3},{ec,-1, 1, 6, 4},{ec, 0, 1, 6, 4},
-                         {ds,-1, 0, 4,-2},
-                         {ds,-2, 0, 5,-1},{du,-1, 0, 5,-1},{dc, 0, 0, 6,-1},{dc, 1, 0, 6,-1},
-                         {dq,-3, 1, 5, 0},{dt,-2, 1, 6, 0},{dt,-1, 0, 6, 0},{dt, 0, 0, 6, 0},{dc, 1, 0, 6, 0},
-                         {dt,-1, 1, 6, 1},{dt, 0, 0, 6, 1},{du, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
+            run_list(   {{ds,-1, 0, 4,-2},
+                         {ds,-2, 0, 5,-1},{dt,-1, 0, 5,-1},
+                         {ds,-3, 1, 5, 0},{dt,-2, 1, 6, 0},{dt,-1, 0, 6, 0},{dt, 0, 0, 6, 0},
+                         {dt,-1, 1, 6, 1},{dt, 0, 0, 6, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
                          {dt, 0, 1, 6, 2},{ds, 1, 0, 5, 2},
-                         {dq, 0, 1, 5, 3},
+                         {ds, 0, 1, 5, 3},
                          {add_ref,-1, 1, 0, 1},
-                         {add_ref,-2, 0, 0, 0},  -- bridge support (left, center, right of nextref)
-                         {add_ref,-1, 0, 0, 1},
+                         {add_ref,-2, 0, 0, 0},  -- bridge support (left and right of nextref)
                          {add_ref, 0, 0, 0, 2}}, user, pointed_thing)
 
         elseif cdir == 18 then  -- pointed west (4, dig up)
-            run_list(   {{aw, 0, 0, 6,-3},{aw,-1, 0, 6,-3},{aw,-2, 0, 6,-3},
-                         {aw, 0, 0, 6, 3},{aw,-1, 0, 6, 3},{aw,-2, 0, 6, 3},
-                         {ec,-3, 1, 6,-3},{ec,-3, 1, 7,-2},{ec,-3, 1, 7,-1},{ec,-3, 1, 7, 0},{ec,-3, 1, 7, 1},{ec,-3, 1, 7, 2},{ec,-3, 1, 6, 3},
-                         {dq,-2, 1, 5,-2},{ds,-1, 0, 5,-2},{dr, 0, 0, 4,-2},
-                         {dt,-2, 1, 6,-1},{dt,-1, 0, 6,-1},{du, 0, 0, 5,-1},
-                         {dt,-2, 1, 6, 0},{dt,-1, 0, 6, 0},{du, 0, 0, 5, 0},
-                         {dt,-2, 1, 6, 1},{dt,-1, 0, 6, 1},{du, 0, 0, 5, 1},
-                         {dq,-2, 1, 5, 2},{ds,-1, 0, 5, 2},{dr, 0, 0, 4, 2},
+            run_list(   {{ds,-2, 1, 5,-2},{ds,-1, 0, 5,-2},{ds, 0, 0, 4,-2},
+                         {dt,-2, 1, 6,-1},{dt,-1, 0, 6,-1},{dt, 0, 0, 5,-1},
+                         {dt,-2, 1, 6, 0},{dt,-1, 0, 6, 0},{dt, 0, 0, 5, 0},
+                         {dt,-2, 1, 6, 1},{dt,-1, 0, 6, 1},{dt, 0, 0, 5, 1},
+                         {ds,-2, 1, 5, 2},{ds,-1, 0, 5, 2},{ds, 0, 0, 4, 2},
                          {add_ref,-2, 1, 0, 0},
                          {add_ref,-2, 0, 0,-1},  -- bridge support (left and right of nextref)
                          {add_ref,-2, 0, 0, 1}}, user, pointed_thing) 
 
         elseif cdir == 19 then  -- pointed southwest (6, dig up)
-            run_list(   {{aw, 3, 0, 5,-2},{aw, 2, 0, 6,-2},{aw, 2, 0, 6,-3},{aw, 1, 0, 7,-3},{aw, 1, 1, 6,-4},
-                         {aw,-2, 0, 5, 3},{aw,-2, 0, 6, 2},{aw,-3, 0, 6, 2},{aw,-3, 0, 7, 1},{aw,-4, 1, 6, 1},
-                         {ec, 0, 1, 6,-4},{ec,-1, 1, 6,-4},{ec,-1, 1, 7,-3},{ec,-1, 1, 7,-2},{ec,-2, 1, 7,-2},{ec,-2, 1, 7,-1},{ec,-3, 1, 7,-1},{ec,-4, 1, 6,-1},{ec,-4, 1, 6, 0},
-                         {dq, 0, 1, 5,-3},
+            run_list(   {{ds, 0, 1, 5,-3},
                          {dt, 0, 1, 6,-2},{ds, 1, 0, 5,-2},
-                         {dt,-1, 1, 6,-1},{dt, 0, 0, 6,-1},{du, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
-                         {dq,-3, 1, 5, 0},{dt,-2, 1, 6, 0},{dt,-1, 0, 6, 0},{dt, 0, 0, 6, 0},{dc, 1, 0, 6, 0},
-                         {ds,-2, 0, 5, 1},{du,-1, 0, 5, 1},{dc, 0, 0, 6, 1},{dc, 1, 0, 6, 1},
+                         {dt,-1, 1, 6,-1},{dt, 0, 0, 6,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
+                         {ds,-3, 1, 5, 0},{dt,-2, 1, 6, 0},{dt,-1, 0, 6, 0},{dt, 0, 0, 6, 0},
+                         {ds,-2, 0, 5, 1},{dt,-1, 0, 5, 1},
                          {ds,-1, 0, 4, 2},
                          {add_ref,-1, 1, 0,-1},
-                         {add_ref,-2, 0, 0, 0},  -- bridge support (left, center, right of nextref)
-                         {add_ref,-1, 0, 0,-1},
+                         {add_ref,-2, 0, 0, 0},  -- bridge support (left and right of nextref)
                          {add_ref, 0, 0, 0,-2}}, user, pointed_thing) 
 
         elseif cdir == 20 then  -- pointed south (8, dig up)
-            run_list(   {{aw, 3, 0, 6, 0},{aw, 3, 0, 6,-1},{aw, 3, 0, 6,-2},
-                         {aw,-3, 0, 6, 0},{aw,-3, 0, 6,-1},{aw,-3, 0, 6,-2},
-                         {ec, 3, 1, 6,-3},{ec, 2, 1, 7,-3},{ec, 1, 1, 7,-3},{ec, 0, 1, 7,-3},{ec,-1, 1, 7,-3},{ec,-2, 1, 7,-3},{ec,-3, 1, 6,-3},
-                         {dq,-2, 1, 5,-2},{dt,-1, 1, 6,-2},{dt, 0, 1, 6,-2},{dt, 1, 1, 6,-2},{dq, 2, 1, 5,-2},
+            run_list(   {{ds,-2, 1, 5,-2},{dt,-1, 1, 6,-2},{dt, 0, 1, 6,-2},{dt, 1, 1, 6,-2},{ds, 2, 1, 5,-2},
                          {ds,-2, 0, 5,-1},{dt,-1, 0, 6,-1},{dt, 0, 0, 6,-1},{dt, 1, 0, 6,-1},{ds, 2, 0, 5,-1},
-                         {dr,-2, 0, 4, 0},{du,-1, 0, 5, 0},{du, 0, 0, 5, 0},{du, 1, 0, 5, 0},{dr, 2, 0, 4, 0},
+                         {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {add_ref,0, 1, 0,-2},
                          {add_ref,-1, 0, 0,-2},  -- bridge support (left and right of nextref)
                          {add_ref, 1, 0, 0,-2}}, user, pointed_thing) 
 
         elseif cdir == 21 then  -- pointed southeast (10, dig up)
-            run_list(   {{aw, 2, 0, 5, 3},{aw, 2, 0, 6, 2},{aw, 3, 0, 6, 2},{aw, 3, 0, 7, 1},{aw, 4, 1, 6, 1},
-                         {aw,-3, 0, 5,-2},{aw,-2, 0, 6,-2},{aw,-2, 0, 6,-3},{aw,-1, 0, 7,-3},{aw,-1, 1, 6,-4},
-                         {ec, 4, 1, 6, 0},{ec, 4, 1, 6,-1},{ec, 3, 1, 7,-1},{ec, 2, 1, 7,-1},{ec, 2, 1, 7,-2},{ec, 1, 1, 7,-2},{ec, 1, 1, 7,-3},{ec, 1, 1, 6,-4},{ec, 0, 1, 6,-4},
-                         {dq, 0, 1, 5,-3},
+            run_list(   {{ds, 0, 1, 5,-3},
                          {ds,-1, 0, 5,-2},{dt, 0, 1, 6,-2},
-                         {ds,-2, 0, 4,-1},{du,-1, 0, 5,-1},{dt, 0, 0, 6,-1},{dt, 1, 1, 6,-1},
-                         {dc,-1, 0, 6, 0},{dt, 0, 0, 6, 0},{dt, 1, 0, 6, 0},{dt, 2, 1, 6, 0},{dq, 3, 1, 5, 0},
-                         {dc,-1, 0, 6, 1},{dc, 0, 0, 6, 1},{du, 1, 0, 5, 1},{ds, 2, 0, 5, 1},
+                         {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 6,-1},{dt, 1, 1, 6,-1},
+                         {dt, 0, 0, 6, 0},{dt, 1, 0, 6, 0},{dt, 2, 1, 6, 0},{ds, 3, 1, 5, 0},
+                         {dt, 1, 0, 5, 1},{ds, 2, 0, 5, 1},
                          {ds, 1, 0, 4, 2},
                          {add_ref, 1, 1, 0,-1},
-                         {add_ref, 2, 0, 0, 0},  -- bridge support (left, center, right of nextref)
-                         {add_ref, 1, 0, 0,-1},
+                         {add_ref, 2, 0, 0, 0},  -- bridge support (left and right of nextref)
                          {add_ref, 0, 0, 0,-2}}, user, pointed_thing) 
 
         elseif cdir == 22 then  -- pointed east (12, dig up)
-            run_list(   {{aw, 0, 0, 6, 3},{aw, 1, 0, 6, 3},{aw, 2, 0, 6, 3},
-                         {aw, 0, 0, 6,-3},{aw, 1, 0, 6,-3},{aw, 2, 0, 6,-3},
-                         {ec, 3, 1, 6, 3},{ec, 3, 1, 7, 2},{ec, 3, 1, 7, 1},{ec, 3, 1, 7, 0},{ec, 3, 1, 7,-1},{ec, 3, 1, 7,-2},{ec, 3, 1, 6,-3},
-                         {dr, 0, 0, 4,-2},{ds, 1, 0, 5,-2},{dq, 2, 1, 5,-2},
-                         {du, 0, 0, 5,-1},{dt, 1, 0, 6,-1},{dt, 2, 1, 6,-1},
-                         {du, 0, 0, 5, 0},{dt, 1, 0, 6, 0},{dt, 2, 1, 6, 0},
-                         {du, 0, 0, 5, 1},{dt, 1, 0, 6, 1},{dt, 2, 1, 6, 1},
-                         {dr, 0, 0, 4, 2},{ds, 1, 0, 5, 2},{dq, 2, 1, 5, 2},
+            run_list(   {{ds, 0, 0, 4,-2},{ds, 1, 0, 5,-2},{ds, 2, 1, 5,-2},
+                         {dt, 0, 0, 5,-1},{dt, 1, 0, 6,-1},{dt, 2, 1, 6,-1},
+                         {dt, 0, 0, 5, 0},{dt, 1, 0, 6, 0},{dt, 2, 1, 6, 0},
+                         {dt, 0, 0, 5, 1},{dt, 1, 0, 6, 1},{dt, 2, 1, 6, 1},
+                         {ds, 0, 0, 4, 2},{ds, 1, 0, 5, 2},{ds, 2, 1, 5, 2},
                          {add_ref, 2, 1, 0, 0},
                          {add_ref, 2, 0, 0, 1},  -- bridge support (left and right of nextref)
                          {add_ref, 2, 0, 0,-1}}, user, pointed_thing) 
 
         elseif cdir == 23 then  -- pointed northeast (14, dig up)
-            run_list(   {{aw,-3, 0, 5, 2},{aw,-2, 0, 6, 2},{aw,-2, 0, 6, 3},{aw,-1, 0, 7, 3},{aw,-1, 1, 6, 4},
-                         {aw, 2, 0, 5,-3},{aw, 2, 0, 6,-2},{aw, 3, 0, 6,-2},{aw, 3, 0, 7,-1},{aw, 4, 1, 6,-1},
-                         {ec, 0, 1, 6, 4},{ec, 1, 1, 6, 4},{ec, 1, 1, 7, 3},{ec, 1, 1, 7, 2},{ec, 2, 1, 7, 2},{ec, 2, 1, 7, 1},{ec, 3, 1, 7, 1},{ec, 4, 1, 6, 1},{ec, 4, 1, 6, 0},
-                         {ds, 1, 0, 4,-2},
-                         {dc,-1, 0, 6,-1},{dc, 0, 0, 6,-1},{du, 1, 0, 5,-1},{ds, 2, 0, 5,-1},
-                         {dc,-1, 0, 6, 0},{dt, 0, 0, 6, 0},{dt, 1, 0, 6, 0},{dt, 2, 1, 6, 0},{dq, 3, 1, 5, 0},
-                         {ds,-2, 0, 4, 1},{du,-1, 0, 5, 1},{dt, 0, 0, 6, 1},{dt, 1, 1, 6, 1},
+            run_list(   {{ds, 1, 0, 4,-2},
+                         {dt, 1, 0, 5,-1},{ds, 2, 0, 5,-1},
+                         {dt, 0, 0, 6, 0},{dt, 1, 0, 6, 0},{dt, 2, 1, 6, 0},{ds, 3, 1, 5, 0},
+                         {ds,-2, 0, 4, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 6, 1},{dt, 1, 1, 6, 1},
                          {ds,-1, 0, 5, 2},{dt, 0, 1, 6, 2},
-                         {dq, 0, 1, 5, 3},
+                         {ds, 0, 1, 5, 3},
                          {add_ref, 1, 1, 0, 1},
-                         {add_ref, 0, 0, 0, 2},  -- bridge support (left, center, right of nextref)
-                         {add_ref, 1, 0, 0, 1},
+                         {add_ref, 0, 0, 0, 2},  -- bridge support (left and right of nextref)
                          {add_ref, 2, 0, 0, 0}}, user, pointed_thing) 
 
--- Dig down
+-- Dig for slope down
         elseif cdir == 24 then  -- pointed north (0, dig down)
-            run_list(   {{aw,-3,-1, 5, 0},{aw, 3,-1, 5, 0},{aw,-3,-1, 5, 1},
-                         {aw, 3,-1, 5, 1},{aw,-3,-1, 5, 2},{aw, 3,-1, 5, 2},
-                         {ec,-3,-1, 4, 3},{ec,-2,-1, 5, 3},{ec,-1,-1, 5, 3},{ec, 0,-1, 5, 3},{ec, 1,-1, 5, 3},{ec, 2,-1, 5, 3},{ec, 3,-1, 4, 3},
-                         {dq,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dq, 2, 0, 4, 0},
+            run_list(   {{ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {ds,-2,-1, 4, 1},{dt,-1,-1, 5, 1},{dt, 0,-1, 5, 1},{dt, 1,-1, 5, 1},{ds, 2,-1, 4, 1},
-                         {dr,-2,-1, 3, 2},{du,-1,-1, 4, 2},{du, 0,-1, 4, 2},{du, 1,-1, 4, 2},{dr, 2,-1, 3, 2},
+                         {ds,-2,-1, 3, 2},{dt,-1,-1, 4, 2},{dt, 0,-1, 4, 2},{dt, 1,-1, 4, 2},{ds, 2,-1, 3, 2},
                          {add_ref, 0,-1, 0, 2},
                          {add_ref,-1,-1, 0, 0},  -- bridge support (left and right of origin)
                          {add_ref, 1,-1, 0, 0}}, user, pointed_thing)
 
         elseif cdir == 25 then  -- pointed northwest (2, dig down)
-            run_list(   {{aw,-2, 0, 5,-3},{aw,-2,-1, 6,-2},{aw,-3,-1, 5,-2},{aw,-3,-1, 5,-1},{aw,-4,-1, 4,-1},
-                         {aw, 3, 0, 5, 2},{aw, 2,-1, 6, 2},{aw, 2,-1, 5, 3},{aw, 1,-1, 5, 3},{aw, 1,-1, 4, 4},
-                         {ec,-4,-1, 4, 0},{ec,-4,-1, 4, 1},{ec,-3,-1, 5, 1},{ec,-2,-1, 6, 1},{ec,-2,-1, 6, 2},{ec,-1,-1, 6, 2},{ec,-1,-1, 5, 3},{ec,-1,-1, 4, 4},{ec, 0,-1, 4, 4},
-                         {ds,-1, 0, 4,-2},
+            run_list(   {{ds,-1, 0, 4,-2},
                          {ds,-2,-1, 4,-1},{dt,-1, 0, 5,-1},
-                         {ds,-3,-1, 3, 0},{du,-2,-1, 4, 0},{dt,-1,-1, 5, 0},{dt, 0, 0, 5, 0},
+                         {ds,-3,-1, 3, 0},{dt,-2,-1, 4, 0},{dt,-1,-1, 5, 0},{dt, 0, 0, 5, 0},
                          {dt,-1,-1, 5, 1},{dt, 0,-1, 5, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
-                         {du, 0,-1, 4, 2},{ds, 1,-1, 4, 2},
+                         {dt, 0,-1, 4, 2},{ds, 1,-1, 4, 2},
                          {ds, 0,-1, 3, 3},
                          {add_ref,-1,-1, 0, 1},
-                         {add_ref, 0,-1, 0, 0},
-                         {add_ref,-1,-1, 0,-1}, -- bridge support (left, center, right of origin)
+                         {add_ref,-1,-1, 0,-1}, -- bridge support (left and right of origin)
                          {add_ref, 1,-1, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 26 then  -- pointed west (4, dig down)
-            run_list(   {{aw, 0,-1, 5,-3},{aw,-1,-1, 5,-3},{aw,-2,-1, 5,-3},
-                         {aw, 0,-1, 5, 3},{aw,-1,-1, 5, 3},{aw,-2,-1, 5, 3},
-                         {ec,-3,-1, 4,-3},{ec,-3,-1, 5,-2},{ec,-3,-1, 5,-1},{ec,-3,-1, 5, 0},{ec,-3,-1, 5, 1},{ec,-3,-1, 5, 2},{ec,-3,-1, 4, 3},
-                         {dr,-2,-1, 3,-2},{ds,-1,-1, 4,-2},{dq, 0, 0, 4,-2},
-                         {du,-2,-1, 4,-1},{dt,-1,-1, 5,-1},{dt, 0, 0, 5,-1},
-                         {du,-2,-1, 4, 0},{dt,-1,-1, 5, 0},{dt, 0, 0, 5, 0},
-                         {du,-2,-1, 4, 1},{dt,-1,-1, 5, 1},{dt, 0, 0, 5, 1},
-                         {dr,-2,-1, 3, 2},{ds,-1,-1, 4, 2},{dq, 0, 0, 4, 2},
+            run_list(   {{ds,-2,-1, 3,-2},{ds,-1,-1, 4,-2},{ds, 0, 0, 4,-2},
+                         {dt,-2,-1, 4,-1},{dt,-1,-1, 5,-1},{dt, 0, 0, 5,-1},
+                         {dt,-2,-1, 4, 0},{dt,-1,-1, 5, 0},{dt, 0, 0, 5, 0},
+                         {dt,-2,-1, 4, 1},{dt,-1,-1, 5, 1},{dt, 0, 0, 5, 1},
+                         {ds,-2,-1, 3, 2},{ds,-1,-1, 4, 2},{ds, 0, 0, 4, 2},
                          {add_ref,-2,-1, 0, 0},
                          {add_ref, 0,-1, 0, 1},  -- bridge support (left and right of origin)
                          {add_ref, 0,-1, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 27 then  -- pointed southwest (6, dig down)
-            run_list(   {{aw, 3, 0, 5,-2},{aw, 2,-1, 6,-2},{aw, 2,-1, 5,-3},{aw, 1,-1, 5,-3},{aw, 1,-1, 4,-4},
-                         {aw,-2, 0, 5, 3},{aw,-2,-1, 6, 2},{aw,-3,-1, 5, 2},{aw,-3,-1, 5, 1},{aw,-4,-1, 4, 1},
-                         {ec, 0,-1, 4,-4},{ec,-1,-1, 4,-4},{ec,-1,-1, 5,-3},{ec,-1, -1, 6,-2},{ec,-2,-1, 6,-2},{ec,-2,-1, 6,-1},{ec,-3,-1, 5,-1},{ec,-4,-1, 4,-1},{ec,-4,-1, 4, 0},
-                         {ds, 0,-1, 3,-3},
-                         {du, 0,-1, 4,-2},{ds, 1,-1, 4,-2},
+            run_list(   {{ds, 0,-1, 3,-3},
+                         {dt, 0,-1, 4,-2},{ds, 1,-1, 4,-2},
                          {dt,-1,-1, 5,-1},{dt, 0,-1, 5,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
-                         {ds,-3,-1, 3, 0},{du,-2,-1, 4, 0},{dt,-1,-1, 5, 0},{dt, 0, 0, 5, 0},
+                         {ds,-3,-1, 3, 0},{dt,-2,-1, 4, 0},{dt,-1,-1, 5, 0},{dt, 0, 0, 5, 0},
                          {ds,-2,-1, 4, 1},{dt,-1, 0, 5, 1},
                          {ds,-1, 0, 4, 2},
                          {add_ref,-1,-1, 0,-1},
-                         {add_ref,-1,-1, 0, 1},  -- bridge support (left, center, right of origin)
-                         {add_ref, 0,-1, 0, 0},
+                         {add_ref,-1,-1, 0, 1},  -- bridge support (left and right of origin)
                          {add_ref, 1,-1, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 28 then  -- pointed south (8, dig down)
-            run_list(   {{aw, 3,-1, 5, 0},{aw, 3,-1, 5,-1},{aw, 3,-1, 5,-2},
-                         {aw,-3,-1, 5, 0},{aw,-3,-1, 5,-1},{aw,-3,-1, 5,-2},
-                         {ec, 3,-1, 4,-3},{ec, 2,-1, 5,-3},{ec, 1,-1, 5,-3},{ec, 0,-1, 5,-3},{ec,-1,-1, 5,-3},{ec,-2,-1, 5,-3},{ec,-3,-1, 4,-3},
-                         {dr,-2,-1, 3,-2},{du,-1,-1, 4,-2},{du, 0,-1, 4,-2},{du, 1,-1, 4,-2},{dr, 2,-1, 3,-2},
+            run_list(   {{ds,-2,-1, 3,-2},{dt,-1,-1, 4,-2},{dt, 0,-1, 4,-2},{dt, 1,-1, 4,-2},{ds, 2,-1, 3,-2},
                          {ds,-2,-1, 4,-1},{dt,-1,-1, 5,-1},{dt, 0,-1, 5,-1},{dt, 1,-1, 5,-1},{ds, 2,-1, 4,-1},
-                         {dq,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dq, 2, 0, 4, 0},
+                         {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {add_ref, 0,-1, 0,-2},
                          {add_ref,-1,-1, 0, 0},  -- bridge support (left and right of origin)
                          {add_ref, 1,-1, 0, 0}}, user, pointed_thing)
 
         elseif cdir == 29 then  -- pointed southeast (10, dig down)
-            run_list(   {{aw, 2, 0, 5, 3},{aw, 2,-1, 6, 2},{aw, 3,-1, 5, 2},{aw, 3,-1, 5, 1},{aw, 4,-1, 4, 1},
-                         {aw,-3, 0, 5,-2},{aw,-2,-1, 6,-2},{aw,-2,-1, 5,-3},{aw,-1,-1, 5,-3},{aw,-1,-1, 4,-4},
-                         {ec, 4,-1, 4, 0},{ec, 4,-1, 4,-1},{ec, 3,-1, 5,-1},{ec, 2,-1, 6,-1},{ec, 2,-1, 6,-2},{ec, 1,-1, 6,-2},{ec, 1,-1, 5,-3},{ec, 1,-1, 4,-4},{ec, 0,-1, 4,-4},
-                         {ds, 0,-1, 3,-3},
-                         {ds,-1,-1, 4,-2},{du, 0,-1, 4,-2},
+            run_list(   {{ds, 0,-1, 3,-3},
+                         {ds,-1,-1, 4,-2},{dt, 0,-1, 4,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0,-1, 5,-1},{dt, 1,-1, 5,-1},
-                         {dt, 0, 0, 5, 0},{dt, 1,-1, 5, 0},{du, 2,-1, 4, 0},{ds, 3,-1, 3, 0},
+                         {dt, 0, 0, 5, 0},{dt, 1,-1, 5, 0},{dt, 2,-1, 4, 0},{ds, 3,-1, 3, 0},
                          {dt, 1, 0, 5, 1},{ds, 2,-1, 4, 1},
                          {ds, 1, 0, 4, 2},
                          {add_ref, 1,-1, 0,-1},
-                         {add_ref,-1,-1, 0,-1},  -- bridge support (left, center, right of origin)
-                         {add_ref, 0,-1, 0, 0},
+                         {add_ref,-1,-1, 0,-1},  -- bridge support (left and right of origin)
                          {add_ref, 1,-1, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 30 then  -- pointed east (12, dig down)
-            run_list(   {{aw, 0,-1, 5, 3},{aw, 1,-1, 5, 3},{aw, 2,-1, 5, 3},
-                         {aw, 0,-1, 5,-3},{aw, 1,-1, 5,-3},{aw, 2,-1, 5,-3},
-                         {ec, 3,-1, 4, 3},{ec, 3,-1, 5, 2},{ec, 3,-1, 5, 1},{ec, 3,-1, 5, 0},{ec, 3,-1, 5,-1},{ec, 3,-1, 5,-2},{ec, 3,-1, 4,-3},
-                         {dq, 0, 0, 4,-2},{ds, 1,-1, 4,-2},{dr, 2,-1, 3,-2},
-                         {dt, 0, 0, 5,-1},{dt, 1,-1, 5,-1},{du, 2,-1, 4,-1},
-                         {dt, 0, 0, 5, 0},{dt, 1,-1, 5, 0},{du, 2,-1, 4, 0},
-                         {dt, 0, 0, 5, 1},{dt, 1,-1, 5, 1},{du, 2,-1, 4, 1},
-                         {dq, 0, 0, 4, 2},{ds, 1,-1, 4, 2},{dr, 2,-1, 3, 2},
+            run_list(   {{ds, 0, 0, 4,-2},{ds, 1,-1, 4,-2},{ds, 2,-1, 3,-2},
+                         {dt, 0, 0, 5,-1},{dt, 1,-1, 5,-1},{dt, 2,-1, 4,-1},
+                         {dt, 0, 0, 5, 0},{dt, 1,-1, 5, 0},{dt, 2,-1, 4, 0},
+                         {dt, 0, 0, 5, 1},{dt, 1,-1, 5, 1},{dt, 2,-1, 4, 1},
+                         {ds, 0, 0, 4, 2},{ds, 1,-1, 4, 2},{ds, 2,-1, 3, 2},
                          {add_ref, 2,-1, 0, 0},
                          {add_ref, 0,-1, 0, 1},  -- bridge support (left and right of origin)
                          {add_ref, 0,-1, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 31 then  -- pointed northeast (14, dig down)
-            run_list(   {{aw,-3, 0, 5, 2},{aw,-2,-1, 6, 2},{aw,-2,-1, 5, 3},{aw,-1,-1, 5, 3},{aw,-1,-1, 4, 4},
-                         {aw, 2, 0, 5,-3},{aw, 2,-1, 6,-2},{aw, 3,-1, 5,-2},{aw, 3,-1, 5,-1},{aw, 4,-1, 4,-1},
-                         {ec, 0,-1, 4, 4},{ec, 1,-1, 4, 4},{ec, 1,-1, 5, 3},{ec, 1,-1, 6, 2},{ec, 2,-1, 6, 2},{ec, 2,-1, 6, 1},{ec, 3,-1, 5, 1},{ec, 4,-1, 4, 1},{ec, 4,-1, 4, 0},
-                         {ds, 1, 0, 4,-2},
+            run_list(   {{ds, 1, 0, 4,-2},
                          {dt, 1, 0, 5,-1},{ds, 2,-1, 4,-1},
-                         {dt, 0, 0, 5, 0},{dt, 1,-1, 5, 0},{du, 2,-1, 4, 0},{ds, 3,-1, 3, 0},
+                         {dt, 0, 0, 5, 0},{dt, 1,-1, 5, 0},{dt, 2,-1, 4, 0},{ds, 3,-1, 3, 0},
                          {ds,-2, 0, 4, 1},{dt,-1, 0, 5, 1},{dt, 0,-1, 5, 1},{dt, 1,-1, 5, 1},
-                         {ds,-1,-1, 4, 2},{du, 0,-1, 4, 2},
+                         {ds,-1,-1, 4, 2},{dt, 0,-1, 4, 2},
                          {ds, 0,-1, 3, 3},
                          {add_ref,-1,-1, 0, 1},
-                         {add_ref,-1,-1, 0, 0},  -- bridge support (left, center, right of origin)
-                         {add_ref, 0,-1, 0, 0},
+                         {add_ref,-1,-1, 0, 0},  -- bridge support (left and right of origin)
                          {add_ref, 1,-1, 0,-1}}, user, pointed_thing)
         end
         add_light(1, user, pointed_thing)  -- change to 1 for more frequent lights (using 1 while debugging updown)
     end
 end
-
 
 local i
 for i,img in ipairs(images) do
@@ -777,10 +584,10 @@ for i,img in ipairs(images) do
                         pointed_thing.above = vector.add(pointed_thing.above, {x=0, y=-1, z=0})  -- don't currently use this
                     end
                     dig_tunnel(i-1, placer, pointed_thing)
-                    tunnelmaker[pname].updown = 0   -- reset after one use
+                    tunnelmaker[pname].updown = 0   -- reset to horizontal after one use
                 end
             end
-        end,        -- on_place
+        end,
     }
     )
 end

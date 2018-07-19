@@ -9,58 +9,48 @@ by David G (kestral246@gmail.com)
 
 Features
 --------
-- Creates tunnel segments in any of the sixteen possible advtrains track directions with one click.
-- Direction of digging based on direction player is pointing.
-- Provides changing icon to help player align in proper direction, based on compassgps mod.
-- Checks ceiling for blocks capable of falling, and replaces them with cobblestone.
-- Adds cobblestone reference blocks in floor to show next dig point, and to help with placing advtrains track.
-- Adds torches to ceiling if ceiling is stone or desert_stone, to help with seeing.
+- Digs "arched" tunnels (5 nodes wide and 5 nodes tall) in all sixteen possible advtrains track directions with one click. Also digs up or down in the eight possible advtrains slope track directions.
+- Fills in tunnel floor (central 3 nodes wide) with stone. Outside of tunnels this can be used to  clear ground, provide cuts and fills, and build simple stone bridges. However, bridge supports will need to be added manually.
+- Requires "tunneling" privilege, checks protections, and only works in creative mode.
 
-- Only allows tunnel digging when in creative mode.
-- Uses privileges, requires "tunneling" privilege to be able to use.
-- Checks protection, and doesn't dig any protected nodes.
-
-- Reference point is at ground level: possible to increase or decrease the grade by changing the height of the reference node.
-- Fills in holes in flooring with stone.
-- Works outside of tunnels to clear ground and provide cuts and fills.
-
-- Try to play nicer with already placed advtrains track (dtrack*).
-- Don't dig dtrack nodes.  This allows expanding or extending tunnels where track has already been laid.
-- If pointing to dtrack node, assume user actually wants to point to ground below track.
-
-- I added a biome check when using minetest version 0.5.x, which will change the fill to desert stones for desert biomes.  For version 0.4.x, tunnelmaker will still work, but will continue to just use regular stone fill.
-- I updated this mod to check for water while tunneling.  Tunnelmaker will now add a glass wall around the tunnel to prevent water from entering the tunnel.  A temporary glass endcap is also added to the end of the tunnel.  What this means is that it is now possible to effectively dig tunnels through water.  Now you can easily run trains to your underwater sea bases.
+![Simple Stone Bridge](images/simple_stone_bridge.png "Simple Stone Bridge")
 
 
-New features
-------------
-- Full support for digging tunnels up or down, supporting advtrains slope tracks.
+How to enable
+-------------
+- Enable creative mode.  This mod is too overpowered for survival mode.
+- Give player "tunneling" privilege (/grant &lt;player&gt; tunneling).
+- To give player a tunnelmaker tool use (/give &lt;player&gt; tunnelmaker:1). *Or see below for crafting recipe.*
 
-![Downslope tunnel](images/downslope_tunnel.png "Downslope tunnel")
 
-
-How to use
+How to dig
 ----------
-Minetest needs to be in creative mode for this mod to work—it is too overpowered otherwise.
+*See diagram below that shows track configurations supported by advtrains.*
 
-Player needs to have tunneling privilege to be able to use the tunnelmaker tool (/grant &lt;player&gt; tunneling).
+- Move to digging location and highlight node at ground level. (Gray node in diagrams marked with an '×'.)
+- Point player in desired digging direction. (Inventory icon will change to show current direction.)
+- Right-click mouse to dig tunnel.
 
-To give player a tunnelmaker tool use (/give &lt;player&gt; tunnelmaker:1). *See below for crafting recipe.*
 
+Digging for slopes
+------------------
+*Note that advtrains only supports sloped track for orthogonal and diagonal track directions.*
+
+- Move to digging location and highlight node at ground level.
+- Point player in desired digging direction.
+- Hold sneak key (shift on pc) and right-click mouse to select digging mode.  Inventory icon will cycle through possible modes with each click:  'U' for digging up, 'D' for digging down, and no letter for default horizontal.
+- Release sneak key and right-click mouse to dig tunnel.
+- *Mode will reset after each dig.  It will also reset if player turns or moves.*
+
+![Tunnelmaker Icons](images/icons.png "Tunnelmaker Icons")
+
+
+Advtrains digging reference
+---------------------------
 The following diagrams show how to make curved tunnels that support the different track configurations used by advtrains. There are three basic directions that are supported: 0° (orthogonal, rook moves), 45° (diagonal, bishop moves), and 26.6° (knight moves, two blocks forward and one block to the side).
 
-To use this mod, move your character to the existing end of the tunnel, highlight the gray node marked with an x, and point character in direction of red arrow. The icon in the inventory, if visible, will change it's image to confirm direction. Then right-click mouse to dig the green highlighted area. (Note that turns with angles other than those show are possible, but aren't supported by advtrains track.)
-
-Using left-click digs similarly to a wooden pickaxe, which is useful for making minor adjustments.
-
-Increasing or decreasing grade is done with the sneak key (shift).  Highlight the node and then hold the sneak key while right-clicking tunnelmaker.
-The icon on the display will show a yellow 'U'.  Releasing the sneak key and repeating the right-click will dig up one node.
-Repeatedly right clicking with the sneak key will cycle between 'U' (up), 'D' (down), and off (horizontal) modes.
-In addition, rotating to a new direction, or moving the character by a bit, will reset the tool to horizontal. 
-
-*Note that advance train slope track only exist for orthogonal and 45 degree directions, and requires at least one horizontal track of the same direction at the top or bottom
-before a turn can be made.*
-
+- *Note that it's always possible to dig in any direction, but turns with angles other than those shown won't be supported by advtrains track.*
+- *Also note that there are other limitations to advtrains slope track.  Documentation TBD.*
 
 ![Turns from 0°](images/dir0.png "Turns from 0")
 
@@ -69,20 +59,14 @@ before a turn can be made.*
 ![Turns from 45°](images/dir45.png "Turns from 45")
 
 
-Update
-------
-Switched digging function from dig_node to node_dig.  This was based on what matyilona200 used for the tunneltest mod.  Thanks matyilona!  This gives several improvements:
-
-- When tunneling, the inventory adds only a single instance of each type of block dug.  Still works if inventory is full.
-- Works the same with minetest versions 0.4.16 and 0.5.0-dev—no more blocks raining down.
-- Works with digall mod enabled.  However, make sure digall is deactivated before tunneling!
-
-
-Digging pattern reference
--------------------------
-Here are all sixteen possible digging patterns for reference, updated to show the changes needed to deal with water.  With no water nearby, the resulting tunnel is almost the same as before—a couple of slight irregularities have been fixed.
-
-![Digging patterns](images/digging_patterns.png "Digging patterns")
+Other details
+-------------
+- Using left-click digs similarly to a wooden pickaxe, which is useful for making minor adjustments.
+- Cobblestone references are placed to show where to continue digging for laying advtrains track.
+- If the ceiling is going to be a falling node, it is replaced with cobblestone before digging out below it.
+- Torches are placed only if ceiling is stone or desert_stone.
+- For minetest version 5.0+, when in desert biomes the fills will change to the desert versions of stone or cobble.
+- Won't dig advtrains track.  Highlighting track will dig based on ground below it. However, be careful with slope track, since this probably isn't what you want. Also this won't work with ATC track, since it also uses right-click.
 
 
 Crafting guide
