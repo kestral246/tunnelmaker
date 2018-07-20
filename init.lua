@@ -155,6 +155,20 @@ local add_ref = function(x, y0, y1, z, user, pointed_thing)
     end
 end
 
+-- add cobble braces for bridges if they would be air
+-- in minetest 5.0+, desert biomes will use desert_cobble
+local add_brace = function(x, y0, y1, z, user, pointed_thing)
+    local pos = vector.add(pointed_thing.under, {x=x, y=y0, z=z})
+    local name = minetest.get_node(pos).name
+    if not minetest.is_protected(pos, user) and name == "air" then
+        if is_desert(pos) then
+            minetest.set_node(pos, {name = "default:desert_cobble"})
+        else
+            minetest.set_node(pos, {name = "default:cobble"})
+        end
+    end
+end
+
 -- dig single node, but not torches, air (not diggable), or advtrain track
 local dig_single = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
@@ -377,8 +391,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {ds,-2, 0, 5, 1},{dt,-1, 0, 6, 1},{dt, 0, 0, 6, 1},{dt, 1, 0, 6, 1},{ds, 2, 0, 5, 1},
                          {ds,-2, 1, 5, 2},{dt,-1, 1, 6, 2},{dt, 0, 1, 6, 2},{dt, 1, 1, 6, 2},{ds, 2, 1, 5, 2},
                          {add_ref, 0, 1, 0, 2},
-                         {add_ref,-1, 0, 0, 2},  -- bridge support (left and right of nextref)
-                         {add_ref, 1, 0, 0, 2}}, user, pointed_thing)
+                         {add_brace,-1, 0, 0, 2},
+                         {add_brace, 1, 0, 0, 2}}, user, pointed_thing)
 
         elseif cdir == 17 then  -- pointed northwest (2, dig up)
             run_list(   {{ds,-1, 0, 4,-2},
@@ -388,8 +402,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {dt, 0, 1, 6, 2},{ds, 1, 0, 5, 2},
                          {ds, 0, 1, 5, 3},
                          {add_ref,-1, 1, 0, 1},
-                         {add_ref,-2, 0, 0, 0},  -- bridge support (left and right of nextref)
-                         {add_ref, 0, 0, 0, 2}}, user, pointed_thing)
+                         {add_brace,-2, 0, 0, 0},
+                         {add_brace, 0, 0, 0, 2}}, user, pointed_thing)
 
         elseif cdir == 18 then  -- pointed west (4, dig up)
             run_list(   {{ds,-2, 1, 5,-2},{ds,-1, 0, 5,-2},{ds, 0, 0, 4,-2},
@@ -398,8 +412,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {dt,-2, 1, 6, 1},{dt,-1, 0, 6, 1},{dt, 0, 0, 5, 1},
                          {ds,-2, 1, 5, 2},{ds,-1, 0, 5, 2},{ds, 0, 0, 4, 2},
                          {add_ref,-2, 1, 0, 0},
-                         {add_ref,-2, 0, 0,-1},  -- bridge support (left and right of nextref)
-                         {add_ref,-2, 0, 0, 1}}, user, pointed_thing) 
+                         {add_brace,-2, 0, 0,-1},
+                         {add_brace,-2, 0, 0, 1}}, user, pointed_thing) 
 
         elseif cdir == 19 then  -- pointed southwest (6, dig up)
             run_list(   {{ds, 0, 1, 5,-3},
@@ -409,16 +423,16 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {ds,-2, 0, 5, 1},{dt,-1, 0, 5, 1},
                          {ds,-1, 0, 4, 2},
                          {add_ref,-1, 1, 0,-1},
-                         {add_ref,-2, 0, 0, 0},  -- bridge support (left and right of nextref)
-                         {add_ref, 0, 0, 0,-2}}, user, pointed_thing) 
+                         {add_brace,-2, 0, 0, 0},
+                         {add_brace, 0, 0, 0,-2}}, user, pointed_thing) 
 
         elseif cdir == 20 then  -- pointed south (8, dig up)
             run_list(   {{ds,-2, 1, 5,-2},{dt,-1, 1, 6,-2},{dt, 0, 1, 6,-2},{dt, 1, 1, 6,-2},{ds, 2, 1, 5,-2},
                          {ds,-2, 0, 5,-1},{dt,-1, 0, 6,-1},{dt, 0, 0, 6,-1},{dt, 1, 0, 6,-1},{ds, 2, 0, 5,-1},
                          {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {add_ref,0, 1, 0,-2},
-                         {add_ref,-1, 0, 0,-2},  -- bridge support (left and right of nextref)
-                         {add_ref, 1, 0, 0,-2}}, user, pointed_thing) 
+                         {add_brace,-1, 0, 0,-2},
+                         {add_brace, 1, 0, 0,-2}}, user, pointed_thing) 
 
         elseif cdir == 21 then  -- pointed southeast (10, dig up)
             run_list(   {{ds, 0, 1, 5,-3},
@@ -428,8 +442,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {dt, 1, 0, 5, 1},{ds, 2, 0, 5, 1},
                          {ds, 1, 0, 4, 2},
                          {add_ref, 1, 1, 0,-1},
-                         {add_ref, 2, 0, 0, 0},  -- bridge support (left and right of nextref)
-                         {add_ref, 0, 0, 0,-2}}, user, pointed_thing) 
+                         {add_brace, 2, 0, 0, 0},
+                         {add_brace, 0, 0, 0,-2}}, user, pointed_thing) 
 
         elseif cdir == 22 then  -- pointed east (12, dig up)
             run_list(   {{ds, 0, 0, 4,-2},{ds, 1, 0, 5,-2},{ds, 2, 1, 5,-2},
@@ -438,8 +452,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {dt, 0, 0, 5, 1},{dt, 1, 0, 6, 1},{dt, 2, 1, 6, 1},
                          {ds, 0, 0, 4, 2},{ds, 1, 0, 5, 2},{ds, 2, 1, 5, 2},
                          {add_ref, 2, 1, 0, 0},
-                         {add_ref, 2, 0, 0, 1},  -- bridge support (left and right of nextref)
-                         {add_ref, 2, 0, 0,-1}}, user, pointed_thing) 
+                         {add_brace, 2, 0, 0, 1},
+                         {add_brace, 2, 0, 0,-1}}, user, pointed_thing) 
 
         elseif cdir == 23 then  -- pointed northeast (14, dig up)
             run_list(   {{ds, 1, 0, 4,-2},
@@ -449,8 +463,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {ds,-1, 0, 5, 2},{dt, 0, 1, 6, 2},
                          {ds, 0, 1, 5, 3},
                          {add_ref, 1, 1, 0, 1},
-                         {add_ref, 0, 0, 0, 2},  -- bridge support (left and right of nextref)
-                         {add_ref, 2, 0, 0, 0}}, user, pointed_thing) 
+                         {add_brace, 0, 0, 0, 2},
+                         {add_brace, 2, 0, 0, 0}}, user, pointed_thing) 
 
 -- Dig for slope down
         elseif cdir == 24 then  -- pointed north (0, dig down)
@@ -458,8 +472,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {ds,-2,-1, 4, 1},{dt,-1,-1, 5, 1},{dt, 0,-1, 5, 1},{dt, 1,-1, 5, 1},{ds, 2,-1, 4, 1},
                          {ds,-2,-1, 3, 2},{dt,-1,-1, 4, 2},{dt, 0,-1, 4, 2},{dt, 1,-1, 4, 2},{ds, 2,-1, 3, 2},
                          {add_ref, 0,-1, 0, 2},
-                         {add_ref,-1,-1, 0, 0},  -- bridge support (left and right of origin)
-                         {add_ref, 1,-1, 0, 0}}, user, pointed_thing)
+                         {add_brace,-1,-1, 0, 0},
+                         {add_brace, 1,-1, 0, 0}}, user, pointed_thing)
 
         elseif cdir == 25 then  -- pointed northwest (2, dig down)
             run_list(   {{ds,-1, 0, 4,-2},
@@ -469,8 +483,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {dt, 0,-1, 4, 2},{ds, 1,-1, 4, 2},
                          {ds, 0,-1, 3, 3},
                          {add_ref,-1,-1, 0, 1},
-                         {add_ref,-1,-1, 0,-1}, -- bridge support (left and right of origin)
-                         {add_ref, 1,-1, 0, 1}}, user, pointed_thing)
+                         {add_brace,-1,-1, 0,-1},
+                         {add_brace, 1,-1, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 26 then  -- pointed west (4, dig down)
             run_list(   {{ds,-2,-1, 3,-2},{ds,-1,-1, 4,-2},{ds, 0, 0, 4,-2},
@@ -479,8 +493,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {dt,-2,-1, 4, 1},{dt,-1,-1, 5, 1},{dt, 0, 0, 5, 1},
                          {ds,-2,-1, 3, 2},{ds,-1,-1, 4, 2},{ds, 0, 0, 4, 2},
                          {add_ref,-2,-1, 0, 0},
-                         {add_ref, 0,-1, 0, 1},  -- bridge support (left and right of origin)
-                         {add_ref, 0,-1, 0,-1}}, user, pointed_thing)
+                         {add_brace, 0,-1, 0, 1},
+                         {add_brace, 0,-1, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 27 then  -- pointed southwest (6, dig down)
             run_list(   {{ds, 0,-1, 3,-3},
@@ -490,16 +504,16 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {ds,-2,-1, 4, 1},{dt,-1, 0, 5, 1},
                          {ds,-1, 0, 4, 2},
                          {add_ref,-1,-1, 0,-1},
-                         {add_ref,-1,-1, 0, 1},  -- bridge support (left and right of origin)
-                         {add_ref, 1,-1, 0,-1}}, user, pointed_thing)
+                         {add_brace,-1,-1, 0, 1},
+                         {add_brace, 1,-1, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 28 then  -- pointed south (8, dig down)
             run_list(   {{ds,-2,-1, 3,-2},{dt,-1,-1, 4,-2},{dt, 0,-1, 4,-2},{dt, 1,-1, 4,-2},{ds, 2,-1, 3,-2},
                          {ds,-2,-1, 4,-1},{dt,-1,-1, 5,-1},{dt, 0,-1, 5,-1},{dt, 1,-1, 5,-1},{ds, 2,-1, 4,-1},
                          {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {add_ref, 0,-1, 0,-2},
-                         {add_ref,-1,-1, 0, 0},  -- bridge support (left and right of origin)
-                         {add_ref, 1,-1, 0, 0}}, user, pointed_thing)
+                         {add_brace,-1,-1, 0, 0},
+                         {add_brace, 1,-1, 0, 0}}, user, pointed_thing)
 
         elseif cdir == 29 then  -- pointed southeast (10, dig down)
             run_list(   {{ds, 0,-1, 3,-3},
@@ -509,8 +523,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {dt, 1, 0, 5, 1},{ds, 2,-1, 4, 1},
                          {ds, 1, 0, 4, 2},
                          {add_ref, 1,-1, 0,-1},
-                         {add_ref,-1,-1, 0,-1},  -- bridge support (left and right of origin)
-                         {add_ref, 1,-1, 0, 1}}, user, pointed_thing)
+                         {add_brace,-1,-1, 0,-1},
+                         {add_brace, 1,-1, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 30 then  -- pointed east (12, dig down)
             run_list(   {{ds, 0, 0, 4,-2},{ds, 1,-1, 4,-2},{ds, 2,-1, 3,-2},
@@ -519,8 +533,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {dt, 0, 0, 5, 1},{dt, 1,-1, 5, 1},{dt, 2,-1, 4, 1},
                          {ds, 0, 0, 4, 2},{ds, 1,-1, 4, 2},{ds, 2,-1, 3, 2},
                          {add_ref, 2,-1, 0, 0},
-                         {add_ref, 0,-1, 0, 1},  -- bridge support (left and right of origin)
-                         {add_ref, 0,-1, 0,-1}}, user, pointed_thing)
+                         {add_brace, 0,-1, 0, 1},
+                         {add_brace, 0,-1, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 31 then  -- pointed northeast (14, dig down)
             run_list(   {{ds, 1, 0, 4,-2},
@@ -530,10 +544,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {ds,-1,-1, 4, 2},{dt, 0,-1, 4, 2},
                          {ds, 0,-1, 3, 3},
                          {add_ref,-1,-1, 0, 1},
-                         {add_ref,-1,-1, 0, 0},  -- bridge support (left and right of origin)
-                         {add_ref, 1,-1, 0,-1}}, user, pointed_thing)
+                         {add_brace,-1,-1, 0, 0},
+                         {add_brace, 1,-1, 0,-1}}, user, pointed_thing)
         end
-        add_light(1, user, pointed_thing)  -- change to 1 for more frequent lights (using 1 while debugging updown)
+        add_light(1, user, pointed_thing)  -- change to 2 for less frequent lights
     end
 end
 
