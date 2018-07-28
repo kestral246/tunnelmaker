@@ -21,10 +21,18 @@ minetest.register_privilege("tunneling", {description = "Allow use of tunnelmake
 -- Define a global variable to maintain per player state
 tunnelmaker = {}
 
--- Initialize players global state on player join
+-- Initialize player's global state when player joins
 minetest.register_on_joinplayer(function(player)
     local pname = player:get_player_name()
     tunnelmaker[pname] = {updown = 0, lastdir = -1, lastpos = {x = 0, y = 0, z = 0}}
+end)
+
+-- Delete player's global state when player leaves
+minetest.register_on_leaveplayer(function(player)
+    local pname = player:get_player_name()
+    if tunnelmaker[pname] then
+        tunnelmaker[pname] = nil
+    end
 end)
 
 local activewidth=8  --until I can find some way to get it from minetest
