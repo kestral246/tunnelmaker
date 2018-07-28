@@ -5,7 +5,7 @@
 -- 
 -- by David G (kestral246@gmail.com)
 
--- Version 0.9.5 - 2018-07-19
+-- Version 0.9.6 - 2018-07-28
 
 -- based on compassgps 2.7 and compass 0.5
 

@@ -1,5 +1,11 @@
 tunnelmaker change log
 
+-- Version 0.9.6
+-- Delete player's global state when player leaves.
+
+-- Version 0.9.5
+-- Add cobble braces for bridges if they would be air.
+
 -- Version 0.9.4
 -- Major update to build in support for digging up and down.
 -- Digging up and down only supports orthogonal and 45deg directions to match advtrains track.
