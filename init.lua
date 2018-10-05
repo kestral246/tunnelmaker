@@ -5,7 +5,7 @@
 -- 
 -- by David G (kestral246@gmail.com)
 
--- Version 0.9.6 - 2018-07-28
+-- Version 0.9.7 - 2018-10-05
 
 -- based on compassgps 2.7 and compass 0.5
 
@@ -18,16 +18,16 @@
 
 minetest.register_privilege("tunneling", {description = "Allow use of tunnelmaker tool"})
 
--- Define a global variable to maintain per player state
-tunnelmaker = {}
+-- Define top level variable to maintain per player state
+local tunnelmaker = {}
 
--- Initialize player's global state when player joins
+-- Initialize player's state when player joins
 minetest.register_on_joinplayer(function(player)
     local pname = player:get_player_name()
     tunnelmaker[pname] = {updown = 0, lastdir = -1, lastpos = {x = 0, y = 0, z = 0}}
 end)
 
--- Delete player's global state when player leaves
+-- Delete player's state when player leaves
 minetest.register_on_leaveplayer(function(player)
     local pname = player:get_player_name()
     if tunnelmaker[pname] then
@@ -181,7 +181,8 @@ end
 local dig_single = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
     local name = minetest.get_node(pos).name
-    local isAdvtrack = minetest.registered_nodes[name].groups.advtrains_track == 1
+    -- local isAdvtrack = minetest.registered_nodes[name].groups.advtrains_track == 1
+    local isAdvtrack = string.match(name, "dtrack")
     if not minetest.is_protected(pos, user) then
         if name ~= "air" and name ~= "default:torch_ceiling" and not isAdvtrack then
             minetest.node_dig(pos, minetest.get_node(pos), user)
@@ -574,15 +575,15 @@ for i,img in ipairs(images) do
         wield_image = img,
         stack_max = 1,
         range = 7.0,
-        -- dig single node like wood pickaxe with left mouse click
-        -- works in both regular and creative modes
+        -- Dig single node with left mouse click, upgraded from wood to steel pickaxe equivalent.
+        -- Works in both regular and creative modes.
         tool_capabilities = {
-            full_punch_interval = 1.2,
-            max_drop_level=0,
+            full_punch_interval = 1.0,
+            max_drop_level=1,
             groupcaps={
-                cracky = {times={[3]=1.6}, maxlevel=1},
+                cracky = {times={[1]=4.00, [2]=1.60, [3]=0.80}, maxlevel=2},
             },
-            damage_groups = {fleshy=2},
+            damage_groups = {fleshy=4},
         },
 
         -- dig tunnel with right mouse click (double tap on android)
@@ -601,9 +602,10 @@ for i,img in ipairs(images) do
                 elseif pointed_thing.type=="node" then
                     -- if advtrains_track, I lower positions of pointed_thing to right below track, but keep name the same.
                     local name = minetest.get_node(pointed_thing.under).name
-                    if minetest.registered_nodes[name].groups.advtrains_track == 1 then
+                    -- if minetest.registered_nodes[name].groups.advtrains_track == 1 then
+                    if string.match(name, "dtrack") then
                         pointed_thing.under = vector.add(pointed_thing.under, {x=0, y=-1, z=0})
-                        pointed_thing.above = vector.add(pointed_thing.above, {x=0, y=-1, z=0})  -- don't currently use this
+                        --pointed_thing.above = vector.add(pointed_thing.above, {x=0, y=-1, z=0})  -- don't currently use this
                     end
                     dig_tunnel(i-1, placer, pointed_thing)
                     tunnelmaker[pname].updown = 0   -- reset to horizontal after one use

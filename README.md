@@ -61,7 +61,7 @@ The following diagrams show how to make curved tunnels that support the differen
 
 Other details
 -------------
-- Using left-click digs similarly to a wooden pickaxe, which is useful for making minor adjustments.
+- Using left-click digs similarly to a steel pickaxe, which is useful for making minor adjustments.
 - Cobblestone references are placed to show where to continue digging for laying advtrains track.
 - If the ceiling is going to be a falling node, it is replaced with cobblestone before digging out below it.
 - Torches are placed only if ceiling is stone or desert_stone.

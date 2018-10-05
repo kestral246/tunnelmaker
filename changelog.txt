@@ -1,5 +1,10 @@
 tunnelmaker change log
 
+-- Version 0.9.7
+-- Revert back to checking for dtrack by name, instead of groups.advtrains_track.
+-- Groups doesn't work in latest versions of advtrains.
+-- Changed left-click digging to steel_pick equivalent instead of wood_pick.
+
 -- Version 0.9.6
 -- Delete player's global state when player leaves.
 
