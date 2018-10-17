@@ -62,7 +62,8 @@ The following diagrams show how to make curved tunnels that support the differen
 Other details
 -------------
 - Using left-click digs similarly to a steel pickaxe, which is useful for making minor adjustments.
-- Cobblestone references are placed to show where to continue digging for laying advtrains track.
+- **New:** Tunneling through water has been added back as a configuration option. Edit init.lua and change water_tunnels to true. This will add a glass enclosure around the tunnel as you go.
+- Cobblestone references are placed to show where to continue digging for laying advtrains track. (**New:** Configuration variable to disable.)
 - If the ceiling is going to be a falling node, it is replaced with cobblestone before digging out below it.
 - Torches are placed only if ceiling is stone or desert_stone.
 - For minetest version 5.0+, when in desert biomes the fills will change to the desert versions of stone or cobble.

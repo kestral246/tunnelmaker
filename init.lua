@@ -5,7 +5,7 @@
 -- 
 -- by David G (kestral246@gmail.com)
 
--- Version 0.9.7 - 2018-10-05
+-- Version 0.9.8 - 2018-10-17
 
 -- based on compassgps 2.7 and compass 0.5
 
@@ -15,6 +15,22 @@
 
 -- You should have received a copy of the CC0 Public Domain Dedication along with this
 -- software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>. 
+
+
+-- Configuration variables
+--------------------------
+-- Change the way certain features of this mod work.
+
+-- Allow tunneling through water.
+-- Builds a glass enclosure around tunnel as you go.
+local water_tunnels = false
+
+-- Add cobblestone reference points in ground.
+-- This is helpful if creating tunnels for advtrains track.
+local add_references = true
+
+-- End of configuration.
+
 
 minetest.register_privilege("tunneling", {description = "Allow use of tunnelmaker tool"})
 
@@ -154,7 +170,7 @@ end
 -- in minetest 5.0+, desert biomes will use desert_cobble
 local add_ref = function(x, y0, y1, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y0, z=z})
-    if not minetest.is_protected(pos, user) then
+    if add_references and not minetest.is_protected(pos, user) then
         if is_desert(pos) then
             minetest.set_node(pos, {name = "default:desert_cobble"})
         else
@@ -184,19 +200,21 @@ local dig_single = function(x, y, z, user, pointed_thing)
     -- local isAdvtrack = minetest.registered_nodes[name].groups.advtrains_track == 1
     local isAdvtrack = string.match(name, "dtrack")
     if not minetest.is_protected(pos, user) then
-        if name ~= "air" and name ~= "default:torch_ceiling" and not isAdvtrack then
+        if water_tunnels and string.match(name, "water") then
+            minetest.set_node(pos, {name = "air"})
+        elseif name ~= "air" and name ~= "default:torch_ceiling" and not isAdvtrack then
             minetest.node_dig(pos, minetest.get_node(pos), user)
         end
     end
 end
 
--- add stone floor if air or water
+-- add stone floor if air or water or glass
 -- in minetest 5.0+, desert biomes will use desert_stone
 local replace_floor = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
     if not minetest.is_protected(pos, user) then
         local name = minetest.get_node(pos).name
-        if name == "air" or string.match(name, "water") then
+        if name == "air" or string.match(name, "water") or name == "default:glass" then
             if is_desert(pos) then
                 minetest.set_node(pos, {name = "default:desert_stone"})
             else
@@ -211,8 +229,8 @@ end
 local replace_ceiling = function(x, y, z, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
     local ceiling = minetest.get_node(pos).name
-    if (ceiling == "default:sand" or ceiling == "default:desert_sand" or ceiling == "default:silver_sand" or
-            ceiling == "default:gravel" or string.match(ceiling, "water")) and
+    if (ceiling == "default:sand" or ceiling == "default:desert_sand" or
+            ceiling == "default:silver_sand" or ceiling == "default:gravel") and
             not minetest.is_protected(pos, user) then
         if is_desert(pos) then
             minetest.set_node(pos, {name = "default:desert_cobble"})
@@ -241,19 +259,58 @@ local add_light = function(spacing, user, pointed_thing)
     end
 end
 
+-- build glass barrier to water
+-- if node is water, replace with glass
+local check_for_water = function(x, y, z, user, pointed_thing)
+    local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+    if water_tunnels and not minetest.is_protected(pos, user) then
+        local name = minetest.get_node(pos).name
+        if string.match(name, "water") then
+            minetest.set_node(pos, {name = "default:glass"})
+        end
+        -- if string.match(name, "air") or string.match(name, "water") then -- debug
+        --     minetest.set_node(pos, {name = "small:box"})
+        -- end
+    end
+end
+
+-- The wall and endcap functions replace water nodes with glass
+-- They build a continuous column from y0 to y1 (e.g., 0:6).
+
+-- add wall (pink)
+local aw = function(x, y0, y1, z, user, pointed_thing)
+    if water_tunnels then
+        for y=y0, y1 do
+            check_for_water(x, y, z, user, pointed_thing)
+        end
+    end
+end
+
+-- add endcap (light orange shorter, darker orange taller)
+local ec = function(x, y0, y1, z, user, pointed_thing)
+    if water_tunnels then
+        for y=y0, y1 do
+            check_for_water(x, y, z, user, pointed_thing)
+        end
+    end
+end
+
 -- dig side column, don't replace floor (light gray)
 local ds = function(x, y0, y1, z, user, pointed_thing)
     local height = y1
     replace_ceiling(x, height+1, z, user, pointed_thing)
+    check_for_water(x, height+1, z, user, pointed_thing)
     for y=height, y0+1, -1 do          -- dig from high to low
         dig_single(x, y, z, user, pointed_thing)
     end
+    check_for_water(x, y0, z, user, pointed_thing)
 end
 
 -- dig tall column, fill in floor if air (light yellow, origin, or next ref)
 local dt = function(x, y0, y1, z, user, pointed_thing)
     local height = y1
     replace_ceiling(x, height+1, z, user, pointed_thing)
+    check_for_water(x, height+1, z, user, pointed_thing)
     for y=height, y0+1, -1 do          -- dig from high to low
         dig_single(x, y, z, user, pointed_thing)
     end
@@ -272,19 +329,28 @@ local dig_tunnel = function(cdir, user, pointed_thing)
     if minetest.check_player_privs(user, "tunneling") then
 -- Dig horizontal
         if cdir == 0 then  -- pointed north
-            run_list(   {{ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
+            run_list(   {{aw,-3, 0, 4, 0},{aw,-3, 0, 4, 1},{aw,-3, 0, 4, 2},
+                         {aw, 3, 0, 4, 0},{aw, 3, 0, 4, 1},{aw, 3, 0, 4, 2},
+                         {ec,-3, 0, 4, 3},{ec,-2, 0, 5, 3},{ec,-1, 0, 6, 3},{ec, 0, 0, 6, 3},{ec, 1, 0, 6, 3},{ec, 2, 0, 5, 3},{ec, 3, 0, 4, 3},
+                         {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {ds,-2, 0, 4, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
                          {ds,-2, 0, 4, 2},{dt,-1, 0, 5, 2},{dt, 0, 0, 5, 2},{dt, 1, 0, 5, 2},{ds, 2, 0, 4, 2},
                          {add_ref, 0, 0, 0, 2}}, user, pointed_thing)
 
         elseif cdir == 1 then  -- pointed north-northwest
-            run_list(   {{ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},
+            run_list(   {{aw,-3, 0, 4, 0},{aw,-4, 0, 4, 1},{aw,-4, 0, 4, 2},
+                         {aw, 3, 0, 4, 1},{aw, 2, 0, 4, 2},{aw, 2, 0, 4, 3},
+                         {ec,-4, 0, 4, 3},{ec,-3, 0, 5, 3},{ec,-2, 0, 6, 3},{ec,-1, 0, 6, 3},{ec, 0, 0, 6, 3},{ec, 1, 0, 5, 3},
+                         {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},
                          {ds,-3, 0, 4, 1},{dt,-2, 0, 5, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
                          {ds,-3, 0, 4, 2},{dt,-2, 0, 5, 2},{dt,-1, 0, 5, 2},{dt, 0, 0, 5, 2},{ds, 1, 0, 4, 2},
                          {add_ref,-1, 0, 0, 2}}, user, pointed_thing)
 
         elseif cdir == 2 then  -- pointed northwest
-            run_list(   {{ds,-1, 0, 4,-2},
+            run_list(   {{aw,-2, 0, 4,-2},{aw,-3, 0, 4,-1},
+                         {aw, 2, 0, 4, 2},{aw, 1, 0, 4, 3},
+                         {ec,-4, 0, 4, 0},{ec,-3, 0, 5, 1},{ec,-2, 0, 6, 1},{ec,-1, 0, 6, 2},{ec,-1, 0, 5, 3},{ec, 0, 0, 4, 4},
+                         {ds,-1, 0, 4,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},
                          {ds,-3, 0, 4, 0},{dt,-2, 0, 5, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},
                          {dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
@@ -293,7 +359,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref,-1, 0, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 3 then  -- pointed west-northwest
-            run_list(   {{ds,-1, 0, 4,-2},
+            run_list(   {{aw,-1, 0, 4,-3},{aw,-2, 0, 4,-2},{aw,-3, 0, 4,-2},
+                         {aw, 0, 0, 4, 3},{aw,-1, 0, 4, 4},{aw,-2, 0, 4, 4},
+                         {ec,-3, 0, 5,-1},{ec,-3, 0, 6, 0},{ec,-3, 0, 6, 1},{ec,-3, 0, 6, 2},{ec,-3, 0, 5, 3},{ec,-3, 0, 4, 4},
+                         {ds,-1, 0, 4,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},
                          {dt,-2, 0, 5, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},
                          {dt,-2, 0, 5, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},
@@ -302,7 +371,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref,-2, 0, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 4 then  -- pointed west
-            run_list(   {{ds,-2, 0, 4,-2},{ds,-1, 0, 4,-2},{ds, 0, 0, 4,-2},
+            run_list(   {{aw, 0, 0, 4,-3},{aw,-1, 0, 4,-3},{aw,-2, 0, 4,-3},
+                         {aw, 0, 0, 4, 3},{aw,-1, 0, 4, 3},{aw,-2, 0, 4, 3},
+                         {ec,-3, 0, 4,-3},{ec,-3, 0, 5,-2},{ec,-3, 0, 6,-1},{ec,-3, 0, 6, 0},{ec,-3, 0, 6, 1},{ec,-3, 0, 5, 2},{ec,-3, 0, 4, 3},
+                         {ds,-2, 0, 4,-2},{ds,-1, 0, 4,-2},{ds, 0, 0, 4,-2},
                          {dt,-2, 0, 5,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},
                          {dt,-2, 0, 5, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},
                          {dt,-2, 0, 5, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},
@@ -310,7 +382,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref,-2, 0, 0, 0}}, user, pointed_thing)
 
         elseif cdir == 5 then  -- pointed west-southwest
-            run_list(   {{ds,-2, 0, 4,-3},{ds,-1, 0, 4,-3},
+            run_list(   {{aw, 0, 0, 4,-3},{aw,-1, 0, 4,-4},{aw,-2, 0, 4,-4},
+                         {aw,-1, 0, 4, 3},{aw,-2, 0, 4, 2},{aw,-3, 0, 4, 2},
+                         {ec,-3, 0, 4,-4},{ec,-3, 0, 5,-3},{ec,-3, 0, 6,-2},{ec,-3, 0, 6,-1},{ec,-3, 0, 6, 0},{ec,-3, 0, 5, 1},
+                         {ds,-2, 0, 4,-3},{ds,-1, 0, 4,-3},
                          {dt,-2, 0, 5,-2},{dt,-1, 0, 5,-2},{ds, 0, 0, 4,-2},
                          {dt,-2, 0, 5,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},
                          {dt,-2, 0, 5, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},
@@ -319,7 +394,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref,-2, 0, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 6 then  -- pointed southwest
-            run_list(   {{ds, 0, 0, 4,-3},
+            run_list(   {{aw, 2, 0, 4,-2},{aw, 1, 0, 4,-3},
+                         {aw,-2, 0, 4, 2},{aw,-3, 0, 4, 1},
+                         {ec, 0, 0, 4,-4},{ec,-1, 0, 5,-3},{ec,-1, 0, 6,-2},{ec,-2, 0, 6,-1},{ec,-3, 0, 5,-1},{ec,-4, 0, 4, 0},
+                         {ds, 0, 0, 4,-3},
                          {dt, 0, 0, 5,-2},{ds, 1, 0, 4,-2},
                          {dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {ds,-3, 0, 4, 0},{dt,-2, 0, 5, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},
@@ -328,25 +406,37 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref,-1, 0, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 7 then  -- pointed south-southwest
-            run_list(   {{ds,-3, 0, 4,-2},{dt,-2, 0, 5,-2},{dt,-1, 0, 5,-2},{dt, 0, 0, 5,-2},{ds, 1, 0, 4,-2},
+            run_list(   {{aw, 3, 0, 4,-1},{aw, 2, 0, 4,-2},{aw, 2, 0, 4,-3},
+                         {aw,-3, 0, 4, 0},{aw,-4, 0, 4,-1},{aw,-4, 0, 4,-2},
+                         {ec, 1, 0, 5,-3},{ec, 0, 0, 6,-3},{ec,-1, 0, 6, -3},{ec,-2, 0, 6,-3},{ec,-3, 0, 5,-3},{ec,-4, 0, 4,-3},
+                         {ds,-3, 0, 4,-2},{dt,-2, 0, 5,-2},{dt,-1, 0, 5,-2},{dt, 0, 0, 5,-2},{ds, 1, 0, 4,-2},
                          {ds,-3, 0, 4,-1},{dt,-2, 0, 5,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},
                          {add_ref,-1, 0, 0,-2}}, user, pointed_thing)
 
         elseif cdir == 8 then  -- pointed south
-            run_list(   {{ds,-2, 0, 4,-2},{dt,-1, 0, 5,-2},{dt, 0, 0, 5,-2},{dt, 1, 0, 5,-2},{ds, 2, 0, 4,-2},
+            run_list(   {{aw, 3, 0, 4, 0},{aw, 3, 0, 4,-1},{aw, 3, 0, 4,-2},
+                         {aw,-3, 0, 4, 0},{aw,-3, 0, 4,-1},{aw,-3, 0, 4,-2},
+                         {ec, 3, 0, 4,-3},{ec, 2, 0, 5,-3},{ec, 1, 0, 6,-3},{ec, 0, 0, 6,-3},{ec,-1, 0, 6,-3},{ec,-2, 0, 5,-3},{ec,-3, 0, 4,-3},
+                         {ds,-2, 0, 4,-2},{dt,-1, 0, 5,-2},{dt, 0, 0, 5,-2},{dt, 1, 0, 5,-2},{ds, 2, 0, 4,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {add_ref,0, 0, 0,-2}}, user, pointed_thing)
 
         elseif cdir == 9 then  -- pointed south-southeast
-            run_list(   {{ds,-1, 0, 4,-2},{dt, 0, 0, 5,-2},{dt, 1, 0, 5,-2},{dt, 2, 0, 5,-2},{ds, 3, 0, 4,-2},
+            run_list(   {{aw, 3, 0, 4, 0},{aw, 4, 0, 4,-1},{aw, 4, 0, 4,-2},
+                         {aw,-3, 0, 4,-1},{aw,-2, 0, 4,-2},{aw,-2, 0, 4,-3},
+                         {ec, 4, 0, 4,-3},{ec, 3, 0, 5,-3},{ec, 2, 0, 6,-3},{ec, 1, 0, 6,-3},{ec, 0, 0, 6,-3},{ec,-1, 0, 5,-3},
+                         {ds,-1, 0, 4,-2},{dt, 0, 0, 5,-2},{dt, 1, 0, 5,-2},{dt, 2, 0, 5,-2},{ds, 3, 0, 4,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{dt, 2, 0, 5,-1},{ds, 3, 0, 4,-1},
                          {dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {add_ref,1, 0, 0,-2}}, user, pointed_thing)
 
         elseif cdir == 10 then  -- pointed southeast
-            run_list(   {{ds, 0, 0, 4,-3},
+            run_list(   {{aw, 2, 0, 4, 2},{aw, 3, 0, 4, 1},
+                         {aw,-2, 0, 4,-2},{aw,-1, 0, 4,-3},
+                         {ec, 4, 0, 4, 0},{ec, 3, 0, 5,-1},{ec, 2, 0, 6,-1},{ec, 1, 0, 6,-2},{ec, 1, 0, 5,-3},{ec, 0, 0, 4,-4},
+                         {ds, 0, 0, 4,-3},
                          {ds,-1, 0, 4,-2},{dt, 0, 0, 5,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dt, 2, 0, 5, 0},{ds, 3, 0, 4, 0},
@@ -355,15 +445,22 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref, 1, 0, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 11 then  -- pointed east-southeast
-            run_list(   {{ds, 1, 0, 4,-3},{ds, 2, 0, 4,-3},
+            run_list(   {{aw, 1, 0, 4, 3},{aw, 2, 0, 4, 2},{aw, 3, 0, 4, 2},
+                         {aw, 0, 0, 4,-3},{aw, 1, 0, 4,-4},{aw, 2, 0, 4,-4},
+                         {ec, 3, 0, 5, 1},{ec, 3, 0, 6, 0},{ec, 3, 0, 6,-1},{ec, 3, 0, 6,-2},{ec, 3, 0, 5,-3},{ec, 3, 0, 4,-4},
+                         {ds, 1, 0, 4,-3},{ds, 2, 0, 4,-3},
                          {ds, 0, 0, 4,-2},{dt, 1, 0, 5,-2},{dt, 2, 0, 5,-2},
                          {dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{dt, 2, 0, 5,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dt, 2, 0, 5, 0},
                          {dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
                          {ds, 1, 0, 4, 2},
                          {add_ref, 2, 0, 0,-1}}, user, pointed_thing)
+
         elseif cdir == 12 then  -- pointed east
-            run_list(   {{ds, 0, 0, 4,-2},{ds, 1, 0, 4,-2},{ds, 2, 0, 4,-2},
+            run_list(   {{aw, 0, 0, 4, 3},{aw, 1, 0, 4, 3},{aw, 2, 0, 4, 3},
+                         {aw, 0, 0, 4,-3},{aw, 1, 0, 4,-3},{aw, 2, 0, 4,-3},
+                         {ec, 3, 0, 4, 3},{ec, 3, 0, 5, 2},{ec, 3, 0, 6, 1},{ec, 3, 0, 6, 0},{ec, 3, 0, 6,-1},{ec, 3, 0, 5,-2},{ec, 3, 0, 4,-3},
+                         {ds, 0, 0, 4,-2},{ds, 1, 0, 4,-2},{ds, 2, 0, 4,-2},
                          {dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{dt, 2, 0, 5,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dt, 2, 0, 5, 0},
                          {dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{dt, 2, 0, 5, 1},
@@ -371,7 +468,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref, 2, 0, 0, 0}}, user, pointed_thing)
 
         elseif cdir == 13 then  -- pointed east-northeast
-            run_list(   {{ds, 1, 0, 4,-2},
+            run_list(   {{aw, 0, 0, 4, 3},{aw, 1, 0, 4, 4},{aw, 2, 0, 4, 4},
+                         {aw, 1, 0, 4,-3},{aw, 2, 0, 4,-2},{aw, 3, 0, 4,-2},
+                         {ec, 3, 0, 4, 4},{ec, 3, 0, 5, 3},{ec, 3, 0, 6, 2},{ec, 3, 0, 6, 1},{ec, 3, 0, 6, 0},{ec, 3, 0, 5,-1},
+                         {ds, 1, 0, 4,-2},
                          {dt, 0, 0, 5,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dt, 2, 0, 5, 0},
                          {dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{dt, 2, 0, 5, 1},
@@ -380,7 +480,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref, 2, 0, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 14 then  -- pointed northeast
-            run_list(   {{ds, 1, 0, 4,-2},
+            run_list(   {{aw,-2, 0, 4, 2},{aw,-1, 0, 4, 3},
+                         {aw, 2, 0, 4,-2},{aw, 3, 0, 4,-1},
+                         {ec, 0, 0, 4, 4},{ec, 1, 0, 5, 3},{ec, 1, 0, 6, 2},{ec, 2, 0, 6, 1},{ec, 3, 0, 5, 1},{ec, 4, 0, 4, 0},
+                         {ds, 1, 0, 4,-2},
                          {dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{dt, 2, 0, 5, 0},{ds, 3, 0, 4, 0},
                          {ds,-2, 0, 4, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},
@@ -389,14 +492,20 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_ref, 1, 0, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 15 then  -- pointed north-northeast
-            run_list(   {{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
+            run_list(   {{aw,-3, 0, 4, 1},{aw,-2, 0, 4, 2},{aw,-2, 0, 4, 3},
+                         {aw, 3, 0, 4, 0},{aw, 4, 0, 4, 1},{aw, 4, 0, 4, 2},
+                         {ec,-1, 0, 5, 3},{ec, 0, 0, 6, 3},{ec, 1, 0, 6, 3},{ec, 2, 0, 6, 3},{ec, 3, 0, 5, 3},{ec, 4, 0, 4, 3},
+                         {dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {ds,-2, 0, 4, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 5, 1},{dt, 1, 0, 5, 1},{dt, 2, 0, 5, 1},{ds, 3, 0, 4, 1},
                          {ds,-1, 0, 4, 2},{dt, 0, 0, 5, 2},{dt, 1, 0, 5, 2},{dt, 2, 0, 5, 2},{ds, 3, 0, 4, 2},
                          {add_ref, 1, 0, 0, 2}}, user, pointed_thing)
 
 -- Dig for slope up
         elseif cdir == 16 then  -- pointed north (0, dig up)
-            run_list(   {{ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
+            run_list(   {{aw,-3, 0, 4, 0},{aw,-3, 0, 5, 1},{aw,-3, 1, 5, 2},
+                         {aw, 3, 0, 4, 0},{aw, 3, 0, 5, 1},{aw, 3, 1, 5, 2},
+                         {ec,-3, 1, 5, 3},{ec,-2, 1, 6, 3},{ec,-1, 1, 7, 3},{ec, 0, 1, 7, 3},{ec, 1, 1, 7, 3},{ec, 2, 1, 6, 3},{ec, 3, 1, 5, 3},
+                         {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {ds,-2, 0, 5, 1},{dt,-1, 0, 6, 1},{dt, 0, 0, 6, 1},{dt, 1, 0, 6, 1},{ds, 2, 0, 5, 1},
                          {ds,-2, 1, 5, 2},{dt,-1, 1, 6, 2},{dt, 0, 1, 6, 2},{dt, 1, 1, 6, 2},{ds, 2, 1, 5, 2},
                          {add_ref, 0, 1, 0, 2},
@@ -404,7 +513,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 1, 0, 0, 2}}, user, pointed_thing)
 
         elseif cdir == 17 then  -- pointed northwest (2, dig up)
-            run_list(   {{ds,-1, 0, 4,-2},
+            run_list(   {{aw,-2, 0, 5,-2},{aw,-3, 1, 5,-1},
+                         {aw, 2, 0, 5, 2},{aw, 1, 1, 5, 3},
+                         {ec,-4, 1, 5, 0},{ec,-3, 1, 6, 1},{ec,-2, 1, 7, 1},{ec,-1, 1, 7, 2},{ec,-1, 1, 6, 3},{ec, 0, 1, 5, 4},
+                         {ds,-1, 0, 4,-2},
                          {ds,-2, 0, 5,-1},{dt,-1, 0, 5,-1},
                          {ds,-3, 1, 5, 0},{dt,-2, 1, 6, 0},{dt,-1, 0, 6, 0},{dt, 0, 0, 6, 0},
                          {dt,-1, 1, 6, 1},{dt, 0, 0, 6, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
@@ -415,7 +527,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 0, 0, 0, 2}}, user, pointed_thing)
 
         elseif cdir == 18 then  -- pointed west (4, dig up)
-            run_list(   {{ds,-2, 1, 5,-2},{ds,-1, 0, 5,-2},{ds, 0, 0, 4,-2},
+            run_list(   {{aw, 0, 0, 4,-3},{aw,-1, 0, 5,-3},{aw,-2, 1, 5,-3},
+                         {aw, 0, 0, 4, 3},{aw,-1, 0, 5, 3},{aw,-2, 1, 5, 3},
+                         {ec,-3, 1, 5,-3},{ec,-3, 1, 6,-2},{ec,-3, 1, 7,-1},{ec,-3, 1, 7, 0},{ec,-3, 1, 7, 1},{ec,-3, 1, 6, 2},{ec,-3, 1, 5, 3},
+                         {ds,-2, 1, 5,-2},{ds,-1, 0, 5,-2},{ds, 0, 0, 4,-2},
                          {dt,-2, 1, 6,-1},{dt,-1, 0, 6,-1},{dt, 0, 0, 5,-1},
                          {dt,-2, 1, 6, 0},{dt,-1, 0, 6, 0},{dt, 0, 0, 5, 0},
                          {dt,-2, 1, 6, 1},{dt,-1, 0, 6, 1},{dt, 0, 0, 5, 1},
@@ -425,7 +540,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace,-2, 0, 0, 1}}, user, pointed_thing) 
 
         elseif cdir == 19 then  -- pointed southwest (6, dig up)
-            run_list(   {{ds, 0, 1, 5,-3},
+            run_list(   {{aw, 2, 0, 5,-2},{aw, 1, 1, 5,-3},
+                         {aw,-2, 0, 5, 2},{aw,-3, 1, 5, 1},
+                         {ec, 0, 1, 5,-4},{ec,-1, 1, 6,-3},{ec,-1, 1, 7,-2},{ec,-2, 1, 7,-1},{ec,-3, 1, 6,-1},{ec,-4, 1, 5, 0},
+                         {ds, 0, 1, 5,-3},
                          {dt, 0, 1, 6,-2},{ds, 1, 0, 5,-2},
                          {dt,-1, 1, 6,-1},{dt, 0, 0, 6,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {ds,-3, 1, 5, 0},{dt,-2, 1, 6, 0},{dt,-1, 0, 6, 0},{dt, 0, 0, 6, 0},
@@ -436,7 +554,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 0, 0, 0,-2}}, user, pointed_thing) 
 
         elseif cdir == 20 then  -- pointed south (8, dig up)
-            run_list(   {{ds,-2, 1, 5,-2},{dt,-1, 1, 6,-2},{dt, 0, 1, 6,-2},{dt, 1, 1, 6,-2},{ds, 2, 1, 5,-2},
+            run_list(   {{aw, 3, 0, 4, 0},{aw, 3, 0, 5,-1},{aw, 3, 1, 5,-2},
+                         {aw,-3, 0, 4, 0},{aw,-3, 0, 5,-1},{aw,-3, 1, 5,-2},
+                         {ec, 3, 1, 5,-3},{ec, 2, 1, 6,-3},{ec, 1, 1, 7,-3},{ec, 0, 1, 7,-3},{ec,-1, 1, 7,-3},{ec,-2, 1, 6,-3},{ec,-3, 1, 5,-3},
+                         {ds,-2, 1, 5,-2},{dt,-1, 1, 6,-2},{dt, 0, 1, 6,-2},{dt, 1, 1, 6,-2},{ds, 2, 1, 5,-2},
                          {ds,-2, 0, 5,-1},{dt,-1, 0, 6,-1},{dt, 0, 0, 6,-1},{dt, 1, 0, 6,-1},{ds, 2, 0, 5,-1},
                          {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {add_ref,0, 1, 0,-2},
@@ -444,7 +565,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 1, 0, 0,-2}}, user, pointed_thing) 
 
         elseif cdir == 21 then  -- pointed southeast (10, dig up)
-            run_list(   {{ds, 0, 1, 5,-3},
+            run_list(   {{aw, 2, 0, 5, 2},{aw, 3, 1, 5, 1},
+                         {aw,-2, 0, 5,-2},{aw,-1, 1, 5,-3},
+                         {ec, 4, 1, 5, 0},{ec, 3, 1, 6,-1},{ec, 2, 1, 7,-1},{ec, 1, 1, 7,-2},{ec, 1, 1, 6,-3},{ec, 0, 1, 5,-4},
+                         {ds, 0, 1, 5,-3},
                          {ds,-1, 0, 5,-2},{dt, 0, 1, 6,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0, 0, 6,-1},{dt, 1, 1, 6,-1},
                          {dt, 0, 0, 6, 0},{dt, 1, 0, 6, 0},{dt, 2, 1, 6, 0},{ds, 3, 1, 5, 0},
@@ -455,7 +579,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 0, 0, 0,-2}}, user, pointed_thing) 
 
         elseif cdir == 22 then  -- pointed east (12, dig up)
-            run_list(   {{ds, 0, 0, 4,-2},{ds, 1, 0, 5,-2},{ds, 2, 1, 5,-2},
+            run_list(   {{aw, 0, 0, 4, 3},{aw, 1, 0, 5, 3},{aw, 2, 1, 5, 3},
+                         {aw, 0, 0, 4,-3},{aw, 1, 0, 5,-3},{aw, 2, 1, 5,-3},
+                         {ec, 3, 1, 5, 3},{ec, 3, 1, 6, 2},{ec, 3, 1, 7, 1},{ec, 3, 1, 7, 0},{ec, 3, 1, 7,-1},{ec, 3, 1, 6,-2},{ec, 3, 1, 5,-3},
+                         {ds, 0, 0, 4,-2},{ds, 1, 0, 5,-2},{ds, 2, 1, 5,-2},
                          {dt, 0, 0, 5,-1},{dt, 1, 0, 6,-1},{dt, 2, 1, 6,-1},
                          {dt, 0, 0, 5, 0},{dt, 1, 0, 6, 0},{dt, 2, 1, 6, 0},
                          {dt, 0, 0, 5, 1},{dt, 1, 0, 6, 1},{dt, 2, 1, 6, 1},
@@ -465,7 +592,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 2, 0, 0,-1}}, user, pointed_thing) 
 
         elseif cdir == 23 then  -- pointed northeast (14, dig up)
-            run_list(   {{ds, 1, 0, 4,-2},
+            run_list(   {{aw,-2, 0, 5, 2},{aw,-1, 1, 5, 3},
+                         {aw, 2, 0, 5,-2},{aw, 3, 1, 5,-1},
+                         {ec, 0, 1, 5, 4},{ec, 1, 1, 6, 3},{ec, 1, 1, 7, 2},{ec, 2, 1, 7, 1},{ec, 3, 1, 6, 1},{ec, 4, 1, 5, 0},
+                         {ds, 1, 0, 4,-2},
                          {dt, 1, 0, 5,-1},{ds, 2, 0, 5,-1},
                          {dt, 0, 0, 6, 0},{dt, 1, 0, 6, 0},{dt, 2, 1, 6, 0},{ds, 3, 1, 5, 0},
                          {ds,-2, 0, 4, 1},{dt,-1, 0, 5, 1},{dt, 0, 0, 6, 1},{dt, 1, 1, 6, 1},
@@ -477,7 +607,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
 
 -- Dig for slope down
         elseif cdir == 24 then  -- pointed north (0, dig down)
-            run_list(   {{ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
+            run_list(   {{aw,-3, 0, 4, 0},{aw,-3,-1, 4, 1},{aw,-3,-1, 3, 2},
+                         {aw, 3, 0, 4, 0},{aw, 3,-1, 4, 1},{aw, 3,-1, 3, 2},
+                         {ec,-3,-1, 3, 3},{ec,-2,-1, 4, 3},{ec,-1,-1, 5, 3},{ec, 0,-1, 5, 3},{ec, 1,-1, 5, 3},{ec, 2,-1, 4, 3},{ec, 3,-1, 3, 3},
+                         {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {ds,-2,-1, 4, 1},{dt,-1,-1, 5, 1},{dt, 0,-1, 5, 1},{dt, 1,-1, 5, 1},{ds, 2,-1, 4, 1},
                          {ds,-2,-1, 3, 2},{dt,-1,-1, 4, 2},{dt, 0,-1, 4, 2},{dt, 1,-1, 4, 2},{ds, 2,-1, 3, 2},
                          {add_ref, 0,-1, 0, 2},
@@ -485,7 +618,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 1,-1, 0, 0}}, user, pointed_thing)
 
         elseif cdir == 25 then  -- pointed northwest (2, dig down)
-            run_list(   {{ds,-1, 0, 4,-2},
+            run_list(   {{aw,-2,-1, 4,-2},{aw,-3,-1, 4,-1},
+                         {aw, 2,-1, 4, 2},{aw, 1,-1, 4, 3},
+                         {ec,-4,-1, 3, 0},{ec,-3,-1, 4, 1},{ec,-2,-1, 5, 1},{ec,-1,-1, 5, 2},{ec,-1,-1, 4, 3},{ec, 0,-1, 3, 4},
+                         {ds,-1, 0, 4,-2},
                          {ds,-2,-1, 4,-1},{dt,-1, 0, 5,-1},
                          {ds,-3,-1, 3, 0},{dt,-2,-1, 4, 0},{dt,-1,-1, 5, 0},{dt, 0, 0, 5, 0},
                          {dt,-1,-1, 5, 1},{dt, 0,-1, 5, 1},{dt, 1, 0, 5, 1},{ds, 2, 0, 4, 1},
@@ -496,7 +632,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 1,-1, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 26 then  -- pointed west (4, dig down)
-            run_list(   {{ds,-2,-1, 3,-2},{ds,-1,-1, 4,-2},{ds, 0, 0, 4,-2},
+            run_list(   {{aw, 0, 0, 4,-3},{aw,-1,-1, 4,-3},{aw,-2,-1, 3,-3},
+                         {aw, 0, 0, 4, 3},{aw,-1,-1, 4, 3},{aw,-2,-1, 3, 3},
+                         {ec,-3,-1, 3,-3},{ec,-3,-1, 4,-2},{ec,-3,-1, 5,-1},{ec,-3,-1, 5, 0},{ec,-3,-1, 5, 1},{ec,-3,-1, 4, 2},{ec,-3,-1, 3, 3},
+                         {ds,-2,-1, 3,-2},{ds,-1,-1, 4,-2},{ds, 0, 0, 4,-2},
                          {dt,-2,-1, 4,-1},{dt,-1,-1, 5,-1},{dt, 0, 0, 5,-1},
                          {dt,-2,-1, 4, 0},{dt,-1,-1, 5, 0},{dt, 0, 0, 5, 0},
                          {dt,-2,-1, 4, 1},{dt,-1,-1, 5, 1},{dt, 0, 0, 5, 1},
@@ -506,7 +645,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 0,-1, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 27 then  -- pointed southwest (6, dig down)
-            run_list(   {{ds, 0,-1, 3,-3},
+            run_list(   {{aw, 2,-1, 4,-2},{aw, 1,-1, 4,-3},
+                         {aw,-2,-1, 4, 2},{aw,-3,-1, 4, 1},
+                         {ec, 0,-1, 3,-4},{ec,-1,-1, 4,-3},{ec,-1, -1, 5,-2},{ec,-2,-1, 5,-1},{ec,-3,-1, 4,-1},{ec,-4,-1, 3, 0},
+                         {ds, 0,-1, 3,-3},
                          {dt, 0,-1, 4,-2},{ds, 1,-1, 4,-2},
                          {dt,-1,-1, 5,-1},{dt, 0,-1, 5,-1},{dt, 1, 0, 5,-1},{ds, 2, 0, 4,-1},
                          {ds,-3,-1, 3, 0},{dt,-2,-1, 4, 0},{dt,-1,-1, 5, 0},{dt, 0, 0, 5, 0},
@@ -517,7 +659,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 1,-1, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 28 then  -- pointed south (8, dig down)
-            run_list(   {{ds,-2,-1, 3,-2},{dt,-1,-1, 4,-2},{dt, 0,-1, 4,-2},{dt, 1,-1, 4,-2},{ds, 2,-1, 3,-2},
+            run_list(   {{aw, 3, 0, 4, 0},{aw, 3,-1, 4,-1},{aw, 3,-1, 3,-2},
+                         {aw,-3, 0, 4, 0},{aw,-3,-1, 4,-1},{aw,-3,-1, 3,-2},
+                         {ec, 3,-1, 3,-3},{ec, 2,-1, 4,-3},{ec, 1,-1, 5,-3},{ec, 0,-1, 5,-3},{ec,-1,-1, 5,-3},{ec,-2,-1, 4,-3},{ec,-3,-1, 3,-3},
+                         {ds,-2,-1, 3,-2},{dt,-1,-1, 4,-2},{dt, 0,-1, 4,-2},{dt, 1,-1, 4,-2},{ds, 2,-1, 3,-2},
                          {ds,-2,-1, 4,-1},{dt,-1,-1, 5,-1},{dt, 0,-1, 5,-1},{dt, 1,-1, 5,-1},{ds, 2,-1, 4,-1},
                          {ds,-2, 0, 4, 0},{dt,-1, 0, 5, 0},{dt, 0, 0, 5, 0},{dt, 1, 0, 5, 0},{ds, 2, 0, 4, 0},
                          {add_ref, 0,-1, 0,-2},
@@ -525,7 +670,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 1,-1, 0, 0}}, user, pointed_thing)
 
         elseif cdir == 29 then  -- pointed southeast (10, dig down)
-            run_list(   {{ds, 0,-1, 3,-3},
+            run_list(   {{aw, 2,-1, 4, 2},{aw, 3,-1, 4, 1},
+                         {aw,-2,-1, 4,-2},{aw,-1,-1, 4,-3},
+                         {ec, 4,-1, 3, 0},{ec, 3,-1, 4,-1},{ec, 2,-1, 5,-1},{ec, 1,-1, 5,-2},{ec, 1,-1, 4,-3},{ec, 0,-1, 3,-4},
+                         {ds, 0,-1, 3,-3},
                          {ds,-1,-1, 4,-2},{dt, 0,-1, 4,-2},
                          {ds,-2, 0, 4,-1},{dt,-1, 0, 5,-1},{dt, 0,-1, 5,-1},{dt, 1,-1, 5,-1},
                          {dt, 0, 0, 5, 0},{dt, 1,-1, 5, 0},{dt, 2,-1, 4, 0},{ds, 3,-1, 3, 0},
@@ -536,7 +684,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 1,-1, 0, 1}}, user, pointed_thing)
 
         elseif cdir == 30 then  -- pointed east (12, dig down)
-            run_list(   {{ds, 0, 0, 4,-2},{ds, 1,-1, 4,-2},{ds, 2,-1, 3,-2},
+            run_list(   {{aw, 0, 0, 4, 3},{aw, 1,-1, 4, 3},{aw, 2,-1, 3, 3},
+                         {aw, 0, 0, 4,-3},{aw, 1,-1, 4,-3},{aw, 2,-1, 3,-3},
+                         {ec, 3,-1, 3, 3},{ec, 3,-1, 4, 2},{ec, 3,-1, 5, 1},{ec, 3,-1, 5, 0},{ec, 3,-1, 5,-1},{ec, 3,-1, 4,-2},{ec, 3,-1, 3,-3},
+                         {ds, 0, 0, 4,-2},{ds, 1,-1, 4,-2},{ds, 2,-1, 3,-2},
                          {dt, 0, 0, 5,-1},{dt, 1,-1, 5,-1},{dt, 2,-1, 4,-1},
                          {dt, 0, 0, 5, 0},{dt, 1,-1, 5, 0},{dt, 2,-1, 4, 0},
                          {dt, 0, 0, 5, 1},{dt, 1,-1, 5, 1},{dt, 2,-1, 4, 1},
@@ -546,7 +697,10 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace, 0,-1, 0,-1}}, user, pointed_thing)
 
         elseif cdir == 31 then  -- pointed northeast (14, dig down)
-            run_list(   {{ds, 1, 0, 4,-2},
+            run_list(   {{aw,-2,-1, 4, 2},{aw,-1,-1, 4, 3},
+                         {aw, 2,-1, 4,-2},{aw, 3,-1, 4,-1},
+                         {ec, 0,-1, 3, 4},{ec, 1,-1, 4, 3},{ec, 1,-1, 5, 2},{ec, 2,-1, 5, 1},{ec, 3,-1, 4, 1},{ec, 4,-1, 3, 0},
+                         {ds, 1, 0, 4,-2},
                          {dt, 1, 0, 5,-1},{ds, 2,-1, 4,-1},
                          {dt, 0, 0, 5, 0},{dt, 1,-1, 5, 0},{dt, 2,-1, 4, 0},{ds, 3,-1, 3, 0},
                          {ds,-2, 0, 4, 1},{dt,-1, 0, 5, 1},{dt, 0,-1, 5, 1},{dt, 1,-1, 5, 1},

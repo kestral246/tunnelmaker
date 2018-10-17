@@ -1,4 +1,8 @@
 tunnelmaker change log
+-- Version 0.9.8
+-- Optionally add back in water tunnels.
+-- Optionally disable placing cobblestone references on the ground.
+-- Edit init.lua to change these configuration variables (near top of file).
 
 -- Version 0.9.7
 -- Revert back to checking for dtrack by name, instead of groups.advtrains_track.
