@@ -65,7 +65,8 @@ Other details
 - **New:** Tunneling through water has been added back as a configuration option. Edit init.lua and change water_tunnels to true. This will add a glass enclosure around the tunnel as you go.
 - Cobblestone references are placed to show where to continue digging for laying advtrains track. (**New:** Configuration variable to disable.)
 - If the ceiling is going to be a falling node, it is replaced with cobblestone before digging out below it.
-- Torches are placed only if ceiling is stone or desert_stone.
+- Torches are placed only if ceiling is stone or desert_stone. (**New:** Torch configuration options added.)
+- **New:** Up/down digging configuration option added.
 - For minetest version 5.0+, when in desert biomes the fills will change to the desert versions of stone or cobble.
 - Won't dig advtrains track.  Highlighting track will dig based on ground below it. However, be careful with slope track, since this probably isn't what you want. Also this won't work with ATC track, since it also uses right-click.
 

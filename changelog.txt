@@ -1,4 +1,10 @@
 tunnelmaker change log
+-- Version 0.9.9
+-- Add additional user configurations.
+-- Optionally disable adding torches.
+-- Optionally change search distance for torches.
+-- Optionally allow continuous up/down digging, without resetting each time.
+
 -- Version 0.9.8
 -- Optionally add back in water tunnels.
 -- Optionally disable placing cobblestone references on the ground.

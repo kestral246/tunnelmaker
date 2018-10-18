@@ -5,7 +5,7 @@
 -- 
 -- by David G (kestral246@gmail.com)
 
--- Version 0.9.8 - 2018-10-17
+-- Version 0.9.9 - 2018-10-18
 
 -- based on compassgps 2.7 and compass 0.5
 
@@ -21,13 +21,25 @@
 --------------------------
 -- Change the way certain features of this mod work.
 
--- Allow tunneling through water.
+-- Allow tunneling through water. (default = false)
 -- Builds a glass enclosure around tunnel as you go.
 local water_tunnels = false
 
--- Add cobblestone reference points in ground.
+-- Add cobblestone reference points in ground. (default = true)
 -- This is helpful if creating tunnels for advtrains track.
 local add_references = true
+
+-- Add torches in ceiling. (default = true)
+-- Warning, tunnels will get really dark without this.
+local add_torches = true
+
+-- Radius to search for adjacent torches before placing torch. (default = 1)
+-- Values from 0 to 4 are reasonable.
+local torch_search_radius = 1
+
+-- Allow digging up/down multiple times without resetting mode. (default = false)
+-- Changing direction will still reset, but moving or digging will not. 
+local continuous_updown_digging = false
 
 -- End of configuration.
 
@@ -101,7 +113,7 @@ minetest.register_globalstep(function(dtime)
                                     (player:getpos().z - tunnelmaker[pname].lastpos.z))
             
             -- If rotate to different direction, or move far enough from set position, reset to horizontal
-            if rawdir ~= tunnelmaker[pname].lastdir or delta > 0.2 then  -- tune to make distance moved feel right
+            if rawdir ~= tunnelmaker[pname].lastdir or (not continuous_updown_digging and delta > 0.2) then  -- tune to make distance moved feel right
                 tunnelmaker[pname].lastdir = rawdir
                 -- tunnelmaker[pname].lastpos = pos
                 tunnelmaker[pname].updown = 0  -- reset updown to horizontal
@@ -244,7 +256,7 @@ end
 local add_light = function(spacing, user, pointed_thing)
     local pos = vector.add(pointed_thing.under, {x=0, y=5, z=0})
     local ceiling = minetest.get_node(vector.add(pos, {x=0, y=1, z=0})).name
-    if (ceiling == "default:stone" or ceiling == "default:desert_stone") and
+    if add_torches and (ceiling == "default:stone" or ceiling == "default:desert_stone") and
             minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) and
             minetest.find_node_near(pos, spacing, {name = "default:torch_ceiling"}) == nil then
         minetest.set_node(pos, {name = "default:torch_ceiling"})
@@ -252,7 +264,7 @@ local add_light = function(spacing, user, pointed_thing)
     -- roof height can now be 5 or six so try again one higher
     pos = vector.add(pointed_thing.under, {x=0, y=6, z=0})
     ceiling = minetest.get_node(vector.add(pos, {x=0, y=1, z=0})).name
-    if (ceiling == "default:stone" or ceiling == "default:desert_stone") and
+    if add_torches and (ceiling == "default:stone" or ceiling == "default:desert_stone") and
             minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) and
             minetest.find_node_near(pos, spacing, {name = "default:torch_ceiling"}) == nil then
         minetest.set_node(pos, {name = "default:torch_ceiling"})
@@ -710,7 +722,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                          {add_brace,-1,-1, 0, 0},
                          {add_brace, 1,-1, 0,-1}}, user, pointed_thing)
         end
-        add_light(1, user, pointed_thing)  -- change to 2 for less frequent lights
+        add_light(torch_search_radius, user, pointed_thing)
     end
 end
 
@@ -762,7 +774,9 @@ for i,img in ipairs(images) do
                         --pointed_thing.above = vector.add(pointed_thing.above, {x=0, y=-1, z=0})  -- don't currently use this
                     end
                     dig_tunnel(i-1, placer, pointed_thing)
-                    tunnelmaker[pname].updown = 0   -- reset to horizontal after one use
+                    if not continuous_updown_digging then
+                        tunnelmaker[pname].updown = 0   -- reset to horizontal after one use
+                    end
                 end
             end
         end,
