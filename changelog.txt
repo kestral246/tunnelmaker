@@ -1,4 +1,10 @@
 tunnelmaker change log
+-- Version 1.0
+-- Add two additional user configurations:
+-- Set height of tunnels.
+-- Optionally disable "arches".
+-- Fixed bug in one reference block placement.
+
 -- Version 0.9.9
 -- Add additional user configurations.
 -- Optionally disable adding torches.

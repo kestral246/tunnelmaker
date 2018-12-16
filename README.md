@@ -11,6 +11,8 @@ Features
 --------
 - Digs "arched" tunnels (5 nodes wide and 5 nodes tall) in all sixteen possible advtrains track directions with one click. Also digs up or down in the eight possible advtrains slope track directions.
 - Fills in tunnel floor (central 3 nodes wide) with stone. Outside of tunnels this can be used to  clear ground, provide cuts and fills, and build simple stone bridges. However, bridge supports will need to be added manually.
+- **New:** Tunneling through water has been enabled by default. This will add a glass enclosure around the tunnel as you go. Configuration variable to disable, if desired.
+- **New:** Height of tunnel and whether to use "arches" are now configuration options. (Defaults to height of 5 with "arches", which matches previous release.)
 - Requires "tunneling" privilege, checks protections, and only works in creative mode.
 
 ![Simple Stone Bridge](images/simple_stone_bridge.png "Simple Stone Bridge")
@@ -62,11 +64,10 @@ The following diagrams show how to make curved tunnels that support the differen
 Other details
 -------------
 - Using left-click digs similarly to a steel pickaxe, which is useful for making minor adjustments.
-- **New:** Tunneling through water has been added back as a configuration option. Edit init.lua and change water_tunnels to true. This will add a glass enclosure around the tunnel as you go.
-- Cobblestone references are placed to show where to continue digging for laying advtrains track. (**New:** Configuration variable to disable.)
+- Cobblestone references are placed to show where to continue digging for laying advtrains track. (Configuration variable to disable.)
 - If the ceiling is going to be a falling node, it is replaced with cobblestone before digging out below it.
-- Torches are placed only if ceiling is stone or desert_stone. (**New:** Torch configuration options added.)
-- **New:** Up/down digging configuration option added.
+- Torches are placed only if ceiling is stone or desert_stone. (Torch configuration options added.)
+- Continuous up/down digging configuration option added.
 - For minetest version 5.0+, when in desert biomes the fills will change to the desert versions of stone or cobble.
 - Won't dig advtrains track.  Highlighting track will dig based on ground below it. However, be careful with slope track, since this probably isn't what you want. Also this won't work with ATC track, since it also uses right-click.
 
