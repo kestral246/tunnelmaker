@@ -1,0 +1,81 @@
+# This file contains settings of tunnelmaker that can be changed in
+# minetest.conf
+
+#    Allow the use of other materials in desert biomes.
+#    Material changes in "Marking desert" and "Coating desert"
+#    (default = false)
+add_desert_material (Add desert material) bool false
+
+#    Allow to replace the coating of tunnels on a specific coating.
+#    Material changes in "Coating not desert" and "Coating desert"
+#    (default = true)
+add_tough_tunnels (Add tough tunnels) bool true
+
+#    Allow wide paths in the woods. Greenpeace does not approve.
+#    (default = true)
+add_wide_passage (Add wide passage) bool true
+
+#    Allow to replace water in air and a transparent coating tunnels.
+#    Material changes in "Glass walls"
+#    (default = true)
+add_dry_tunnels (Add dry tunnels) bool true
+
+#    Add ceiling lighting.
+#    Material changes in "Lighting"
+#    (default = true)
+add_lighting (Add lighting) bool true
+
+#    Distance between illumination (from 0 to 4).
+#    (default = 1)
+lighting_search_radius (Lighting search radius) int 1 0
+
+#    Add gravel mound and additional base.
+#    Material changes in "Embankment"
+#    (default = true)
+add_embankment (Add embankment) bool true
+
+#    Add markup for the railway advtrains.
+#    Material changes in "Marking not desert" and "Marking desert"
+#    (default = true)
+add_marking (Add marking) bool true
+
+#    Allow digging up/down multiple times without resetting mode.
+#    (default = true)
+continuous_updown_digging (Continuous updown digging) bool true
+
+#    Add "arches" along the sides.
+#    Material changes in "Coating not desert" and "Coating desert"
+#    (default = true)
+add_arches (Add arches) bool true
+
+#    Define height of tunnel (from 5 and more).
+#    (default = 5)
+tunnel_height (Tunnel height) int 5 0
+
+#    Walls, floor and additional base (outside the desert).
+#    (default = default:stone)
+coating_not_desert (Coating not desert) string default:stone
+
+#    Walls, floor and additional base (in the desert).
+#    (default = default:desert_stone)
+coating_desert (Coating desert) string default:desert_stone
+
+#    Walls in the water.
+#    (default = default:glass)
+glass_walls (Glass walls) string default:glass
+
+#    Ceiling lighting.
+#    (default = default:mese_post_light)
+lighting (Lighting) string default:mese_post_light
+
+#    Embankment for railway tracks.
+#    (default = default:gravel)
+embankment (Embankment) string default:gravel
+
+#    Railway markings for advtrains (outside the desert).
+#    (default = default:stone_block)
+marking_not_desert (Marking not desert) string default:stone_block
+
+#    Railway markings for advtrains (in the desert).
+#    (default = default:desert_stone_block)
+marking_desert (Marking desert) string default:desert_stone_block

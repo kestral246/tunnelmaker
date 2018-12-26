@@ -1,4 +1,21 @@
 tunnelmaker change log
+-- Version 1.X.X
+-- Removed the crafting scheme for the tunnelmaker tool. Normal players do not need to craft the tunnelmaker tool, and the administration can use the command /give <name> tunnelmaker:tool1 .
+-- Added the ability to make a mound of gravel (or any other material) and an additional base under the gravel.
+-- Custom configurations are made in settingtypes.txt and accessed in the main menu minetest / advanced settings / mods / tunnelmaker.
+-- Add additional user configurations.
+-- Optionally enable the use of other materials in desert biomes.
+-- Optionally disable to replace the coating of tunnels on a specific coating.
+-- Optionally disable wide paths in the woods
+-- Optionally disable gravel mound and additional base.
+-- Optionally disable markup for the railway advtrains.
+-- Now you can change any material that is used in the tunnelmaker
+-- Added coverage in underwater tunnels
+-- When using "Glass walls", underwater tunnels have become completely sealed.
+-- Added the function of automatic replacement of material markup on the road surface. Use the remove_marking <on | off> command.
+-- Now for the operation of the functions of the mod is not required creative mode.
+-- Now on the floor of the tunnel there is always a specific coating.
+
 -- Version 1.0
 -- Add two additional user configurations:
 -- Set height of tunnels.
