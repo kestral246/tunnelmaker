@@ -5,7 +5,7 @@
 -- 
 -- by David G (kestral246@gmail.com)
 
--- Version 1.0 - 2018-12-16
+-- Version 1.1 - 2019-01-01
 
 -- based on compassgps 2.7 and compass 0.5
 
@@ -334,403 +334,139 @@ local dt = function(x, y0, y1, z, user, pointed_thing)
 	replace_floor(x, y0, z, user, pointed_thing)
 end
 
--- To shorten the code, this function takes a list of lists with {function, x-coord, y-coord} and executes them in sequence.
-local run_list = function(dir_list, user, pointed_thing)
-	for i,v in ipairs(dir_list) do
-		v[1](v[2], v[3], v[4], v[5], user, pointed_thing)
+-- Add flips and rotates so I only need to define the seven basic digging patterns.
+-- For flip: 1 = vertical, -1 = horizontal, 2 = both.
+-- For rotate: 1 = clockwise, -1 = counterclockwise.
+
+local fliprot = function(pos, f, r)
+	local res = {}
+	if f == 2 then  -- double flip
+		res.x = -pos.x
+		res.z = -pos.z
+	elseif f ~= 0 and r == 0 then  -- single flip
+		res.x = f * pos.x
+		res.z = -f * pos.z
+	elseif f == 0 and r ~= 0 then  -- rotate
+		res.x = r * pos.z
+		res.z = -r * pos.x
+	elseif f ~= 0 and r ~= 0 then  -- flip + rotate
+		res.x = f * r * pos.z
+		res.z = f * r * pos.x
+	else  -- identity
+		res.x = pos.x
+		res.z = pos.z
+	end
+	return res
+end
+
+local run_list = function(dir_list, f, r, user, pointed_thing)
+	for _,v in ipairs(dir_list) do
+		local pos = {}
+		pos.x = v[2]
+		pos.z = v[5]
+		local newpos = fliprot(pos, f, r)
+		v[1](newpos.x, v[3], v[4], newpos.z, user, pointed_thing)
 	end
 end
 
--- dig tunnel based on direction given
+-- Dig tunnel based on direction given.
 local dig_tunnel = function(cdir, user, pointed_thing)
 	if minetest.check_player_privs(user, "tunneling") then
-		-- Short abbreviations: "c" (ceiling) and "a" (arch)
 		local c = tunnel_height
 		local a = tunnel_height - 1
 		if not tunnel_arch then a = tunnel_height end
--- Dig horizontal
-		if cdir == 0 then  -- pointed north
-			run_list({{aw,-3, 0, a, 0},{aw,-3, 0, a, 1},{aw,-3, 0, a, 2},
-				{aw, 3, 0, a, 0},{aw, 3, 0, a, 1},{aw, 3, 0, a, 2},
-				{ec,-3, 0, a, 3},{ec,-2, 0, a+1, 3},{ec,-1, 0, c+1, 3},{ec, 0, 0, c+1, 3},{ec, 1, 0, c+1, 3},{ec, 2, 0, a+1, 3},{ec, 3, 0, a, 3},
-				{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
-				{ds,-2, 0, a, 1},{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
-				{ds,-2, 0, a, 2},{dt,-1, 0, c, 2},{dt, 0, 0, c, 2},{dt, 1, 0, c, 2},{ds, 2, 0, a, 2},
-				{add_ref, 0, 0, 0, 2}}, user, pointed_thing)
 
-		elseif cdir == 1 then  -- pointed north-northwest
-			run_list({{aw,-3, 0, a, 0},{aw,-4, 0, a, 1},{aw,-4, 0, a, 2},
-				{aw, 3, 0, a, 1},{aw, 2, 0, a, 2},{aw, 2, 0, a, 3},
-				{ec,-4, 0, a, 3},{ec,-3, 0, a+1, 3},{ec,-2, 0, c+1, 3},{ec,-1, 0, c+1, 3},{ec, 0, 0, c+1, 3},{ec, 1, 0, a+1, 3},
-				{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},
-				{ds,-3, 0, a, 1},{dt,-2, 0, c, 1},{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
-				{ds,-3, 0, a, 2},{dt,-2, 0, c, 2},{dt,-1, 0, c, 2},{dt, 0, 0, c, 2},{ds, 1, 0, a, 2},
-				{add_ref,-1, 0, 0, 2}}, user, pointed_thing)
+		local dig_patterns = {
+			-- Orthogonal (north reference).
+			[1] = {{aw,-3, 0, a, 0},{aw,-3, 0, a, 1},{aw,-3, 0, a, 2},
+			{aw, 3, 0, a, 0},{aw, 3, 0, a, 1},{aw, 3, 0, a, 2},
+			{ec,-3, 0, a, 3},{ec,-2, 0, a+1, 3},{ec,-1, 0, c+1, 3},{ec, 0, 0, c+1, 3},{ec, 1, 0, c+1, 3},{ec, 2, 0, a+1, 3},{ec, 3, 0, a, 3},
+			{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
+			{ds,-2, 0, a, 1},{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
+			{ds,-2, 0, a, 2},{dt,-1, 0, c, 2},{dt, 0, 0, c, 2},{dt, 1, 0, c, 2},{ds, 2, 0, a, 2},
+			{add_ref, 0, 0, 0, 2}},
+			-- Knight move (north-northwest reference).
+			[2] = {{aw,-3, 0, a, 0},{aw,-4, 0, a, 1},{aw,-4, 0, a, 2},
+			{aw, 3, 0, a, 1},{aw, 2, 0, a, 2},{aw, 2, 0, a, 3},
+			{ec,-4, 0, a, 3},{ec,-3, 0, a+1, 3},{ec,-2, 0, c+1, 3},{ec,-1, 0, c+1, 3},{ec, 0, 0, c+1, 3},{ec, 1, 0, a+1, 3},
+			{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},
+			{ds,-3, 0, a, 1},{dt,-2, 0, c, 1},{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
+			{ds,-3, 0, a, 2},{dt,-2, 0, c, 2},{dt,-1, 0, c, 2},{dt, 0, 0, c, 2},{ds, 1, 0, a, 2},
+			{add_ref,-1, 0, 0, 2}},
+			-- Diagonal (northwest reference).
+			[3] = {{aw,-2, 0, a,-2},{aw,-3, 0, a,-1},
+			{aw, 2, 0, a, 2},{aw, 1, 0, a, 3},
+			{ec,-4, 0, a, 0},{ec,-3, 0, a, 1},{ec,-2, 0, c, 1},{ec,-1, 0, c, 2},{ec,-1, 0, a, 3},{ec, 0, 0, a, 4},
+			{ds,-1, 0, a,-2},
+			{ds,-2, 0, a,-1},{dt,-1, 0, c,-1},
+			{ds,-3, 0, a, 0},{dt,-2, 0, c, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},
+			{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
+			{dt, 0, 0, c, 2},{ds, 1, 0, a, 2},
+			{ds, 0, 0, a, 3},
+			{add_ref,-1, 0, 0, 1}},
+			-- Orthogonal slope down (north reference).
+			[10] = {{aw,-3, 0, a, 0},{aw,-3,-1, a, 1},{aw,-3,-1, a-1, 2},
+			{aw, 3, 0, a, 0},{aw, 3,-1, a, 1},{aw, 3,-1, a-1, 2},
+			{ec,-3,-1, a-1, 3},{ec,-2,-1, a, 3},{ec,-1,-1, c, 3},{ec, 0,-1, c, 3},{ec, 1,-1, c, 3},{ec, 2,-1, a, 3},{ec, 3,-1, a-1, 3},
+			{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
+			{ds,-2,-1, a, 1},{dt,-1,-1, c, 1},{dt, 0,-1, c, 1},{dt, 1,-1, c, 1},{ds, 2,-1, a, 1},
+			{ds,-2,-1, a-1, 2},{dt,-1,-1, c-1, 2},{dt, 0,-1, c-1, 2},{dt, 1,-1, c-1, 2},{ds, 2,-1, a-1, 2},
+			{add_ref, 0,-1, 0, 2},
+			{add_brace,-1,-1, 0, 0},
+			{add_brace, 1,-1, 0, 0}},
+			-- Orthogonal slope up (north reference).
+			[11] = {{aw,-3, 0, a, 0},{aw,-3, 0, a+1, 1},{aw,-3, 1, a+1, 2},
+			{aw, 3, 0, a, 0},{aw, 3, 0, a+1, 1},{aw, 3, 1, a+1, 2},
+			{ec,-3, 1, a+1, 3},{ec,-2, 1, a+2, 3},{ec,-1, 1, c+2, 3},{ec, 0, 1, c+2, 3},{ec, 1, 1, c+2, 3},{ec, 2, 1, a+2, 3},{ec, 3, 1, a+1, 3},
+			{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
+			{ds,-2, 0, a+1, 1},{dt,-1, 0, c+1, 1},{dt, 0, 0, c+1, 1},{dt, 1, 0, c+1, 1},{ds, 2, 0, a+1, 1},
+			{ds,-2, 1, a+1, 2},{dt,-1, 1, c+1, 2},{dt, 0, 1, c+1, 2},{dt, 1, 1, c+1, 2},{ds, 2, 1, a+1, 2},
+			{add_ref, 0, 1, 0, 2},
+			{add_brace,-1, 0, 0, 2},
+			{add_brace, 1, 0, 0, 2}},
+			-- Diagonal slope down (northwest reference).
+			[30] = {{aw,-2,-1, a,-2},{aw,-3,-1, a,-1},
+			{aw, 2,-1, a, 2},{aw, 1,-1, a, 3},
+			{ec,-4,-1, a-1, 0},{ec,-3,-1, a, 1},{ec,-2,-1, c, 1},{ec,-1,-1, c, 2},{ec,-1,-1, a, 3},{ec, 0,-1, a-1, 4},
+			{ds,-1, 0, a,-2},
+			{ds,-2,-1, a,-1},{dt,-1, 0, c,-1},
+			{ds,-3,-1, a-1, 0},{dt,-2,-1, c-1, 0},{dt,-1,-1, c, 0},{dt, 0, 0, c, 0},
+			{dt,-1,-1, c, 1},{dt, 0,-1, c, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
+			{dt, 0,-1, c-1, 2},{ds, 1,-1, a, 2},
+			{ds, 0,-1, a-1, 3},
+			{add_ref,-1,-1, 0, 1},
+			{add_brace,-1,-1, 0,-1},
+			{add_brace, 1,-1, 0, 1}},
+			-- Diagonal slope up (northwest reference).
+			[31] = {{aw,-2, 0, a+1,-2},{aw,-3, 1, a+1,-1},
+			{aw, 2, 0, a+1, 2},{aw, 1, 1, a+1, 3},
+			{ec,-4, 1, a+1, 0},{ec,-3, 1, c+1, 1},{ec,-2, 1, c+2, 1},{ec,-1, 1, c+2, 2},{ec,-1, 1, c+1, 3},{ec, 0, 1, a+1, 4},
+			{ds,-1, 0, a,-2},
+			{ds,-2, 0, a+1,-1},{dt,-1, 0, c,-1},
+			{ds,-3, 1, a+1, 0},{dt,-2, 1, c+1, 0},{dt,-1, 0, c+1, 0},{dt, 0, 0, c+1, 0},
+			{dt,-1, 1, c+1, 1},{dt, 0, 0, c+1, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
+			{dt, 0, 1, c+1, 2},{ds, 1, 0, a+1, 2},
+			{ds, 0, 1, a+1, 3},
+			{add_ref,-1, 1, 0, 1},
+			{add_brace,-2, 0, 0, 0},
+			{add_brace, 0, 0, 0, 2}}
+		}
 
-		elseif cdir == 2 then  -- pointed northwest
-			run_list({{aw,-2, 0, a,-2},{aw,-3, 0, a,-1},
-				{aw, 2, 0, a, 2},{aw, 1, 0, a, 3},
-				{ec,-4, 0, a, 0},{ec,-3, 0, a, 1},{ec,-2, 0, c, 1},{ec,-1, 0, c, 2},{ec,-1, 0, a, 3},{ec, 0, 0, a, 4},
-				{ds,-1, 0, a,-2},
-				{ds,-2, 0, a,-1},{dt,-1, 0, c,-1},
-				{ds,-3, 0, a, 0},{dt,-2, 0, c, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},
-				{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
-				{dt, 0, 0, c, 2},{ds, 1, 0, a, 2},
-				{ds, 0, 0, a, 3},
-				{add_ref,-1, 0, 0, 1}}, user, pointed_thing)
+		local dig_lookup = {  -- Defines dig pattern, flip, and rotation for each direction.
+			[0] = {1, 0, 0}, [1] = {2, 0, 0}, [2] = {3, 0, 0}, [3] = {2, 1, -1},
+			[4] = {1, 0, -1}, [5] = {2, 0, -1}, [6] = {3, 1, 0}, [7] = {2, 1, 0},
+			[8] = {1, 1, 0}, [9] = {2, 2, 0}, [10] = {3, 2, 0}, [11] = {2, 1, 1},
+			[12] = {1, 0, 1}, [13] = {2, 0, 1}, [14] = {3, 0, 1}, [15] = {2, -1, 0},
+			[16] = {11, 0, 0}, [17] = {31, 0, 0}, [18] = {11, 0, -1}, [19] = {31, 1, 0},
+			[20] = {11, 1, 0}, [21] = {31, 2, 0}, [22] = {11, 0, 1}, [23] = {31, -1, 0},
+			[24] = {10, 0, 0}, [25] = {30, 0, 0}, [26] = {10, 0, -1}, [27] = {30, 1, 0},
+			[28] = {10, 1, 0}, [29] = {30, 2, 0}, [30] = {10, 0, 1}, [31] = {30, -1, 0}
+		}
 
-		elseif cdir == 3 then  -- pointed west-northwest
-			run_list({{aw,-1, 0, a,-3},{aw,-2, 0, a,-2},{aw,-3, 0, a,-2},
-				{aw, 0, 0, a, 3},{aw,-1, 0, a, 4},{aw,-2, 0, a, 4},
-				{ec,-3, 0, a+1,-1},{ec,-3, 0, c+1, 0},{ec,-3, 0, c+1, 1},{ec,-3, 0, c+1, 2},{ec,-3, 0, a+1, 3},{ec,-3, 0, a, 4},
-				{ds,-1, 0, a,-2},
-				{ds,-2, 0, a,-1},{dt,-1, 0, c,-1},{dt, 0, 0, c,-1},
-				{dt,-2, 0, c, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},
-				{dt,-2, 0, c, 1},{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},
-				{dt,-2, 0, c, 2},{dt,-1, 0, c, 2},{ds, 0, 0, a, 2},
-				{ds,-2, 0, a, 3},{ds,-1, 0, a, 3},
-				{add_ref,-2, 0, 0, 1}}, user, pointed_thing)
-
-		elseif cdir == 4 then  -- pointed west
-			run_list({{aw, 0, 0, a,-3},{aw,-1, 0, a,-3},{aw,-2, 0, a,-3},
-				{aw, 0, 0, a, 3},{aw,-1, 0, a, 3},{aw,-2, 0, a, 3},
-				{ec,-3, 0, a,-3},{ec,-3, 0, a+1,-2},{ec,-3, 0, c+1,-1},{ec,-3, 0, c+1, 0},{ec,-3, 0, c+1, 1},{ec,-3, 0, a+1, 2},{ec,-3, 0, a, 3},
-				{ds,-2, 0, a,-2},{ds,-1, 0, a,-2},{ds, 0, 0, a,-2},
-				{dt,-2, 0, c,-1},{dt,-1, 0, c,-1},{dt, 0, 0, c,-1},
-				{dt,-2, 0, c, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},
-				{dt,-2, 0, c, 1},{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},
-				{ds,-2, 0, a, 2},{ds,-1, 0, a, 2},{ds, 0, 0, a, 2},
-				{add_ref,-2, 0, 0, 0}}, user, pointed_thing)
-
-		elseif cdir == 5 then  -- pointed west-southwest
-			run_list({{aw, 0, 0, a,-3},{aw,-1, 0, a,-4},{aw,-2, 0, a,-4},
-				{aw,-1, 0, a, 3},{aw,-2, 0, a, 2},{aw,-3, 0, a, 2},
-				{ec,-3, 0, a,-4},{ec,-3, 0, a+1,-3},{ec,-3, 0, c+1,-2},{ec,-3, 0, c+1,-1},{ec,-3, 0, c+1, 0},{ec,-3, 0, a+1, 1},
-				{ds,-2, 0, a,-3},{ds,-1, 0, a,-3},
-				{dt,-2, 0, c,-2},{dt,-1, 0, c,-2},{ds, 0, 0, a,-2},
-				{dt,-2, 0, c,-1},{dt,-1, 0, c,-1},{dt, 0, 0, c,-1},
-				{dt,-2, 0, c, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},
-				{ds,-2, 0, a, 1},{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},
-				{ds,-1, 0, a, 2},
-				{add_ref,-2, 0, 0,-1}}, user, pointed_thing)
-
-		elseif cdir == 6 then  -- pointed southwest
-			run_list({{aw, 2, 0, a,-2},{aw, 1, 0, a,-3},
-				{aw,-2, 0, a, 2},{aw,-3, 0, a, 1},
-				{ec, 0, 0, a,-4},{ec,-1, 0, a,-3},{ec,-1, 0, c,-2},{ec,-2, 0, c,-1},{ec,-3, 0, a,-1},{ec,-4, 0, a, 0},
-				{ds, 0, 0, a,-3},
-				{dt, 0, 0, c,-2},{ds, 1, 0, a,-2},
-				{dt,-1, 0, c,-1},{dt, 0, 0, c,-1},{dt, 1, 0, c,-1},{ds, 2, 0, a,-1},
-				{ds,-3, 0, a, 0},{dt,-2, 0, c, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},
-				{ds,-2, 0, a, 1},{dt,-1, 0, c, 1},
-				{ds,-1, 0, a, 2},
-				{add_ref,-1, 0, 0,-1}}, user, pointed_thing)
-
-		elseif cdir == 7 then  -- pointed south-southwest
-			run_list({{aw, 3, 0, a,-1},{aw, 2, 0, a,-2},{aw, 2, 0, a,-3},
-				{aw,-3, 0, a, 0},{aw,-4, 0, a,-1},{aw,-4, 0, a,-2},
-				{ec, 1, 0, a+1,-3},{ec, 0, 0, c+1,-3},{ec,-1, 0, c+1, -3},{ec,-2, 0, c+1,-3},{ec,-3, 0, a+1,-3},{ec,-4, 0, a,-3},
-				{ds,-3, 0, a,-2},{dt,-2, 0, c,-2},{dt,-1, 0, c,-2},{dt, 0, 0, c,-2},{ds, 1, 0, a,-2},
-				{ds,-3, 0, a,-1},{dt,-2, 0, c,-1},{dt,-1, 0, c,-1},{dt, 0, 0, c,-1},{dt, 1, 0, c,-1},{ds, 2, 0, a,-1},
-				{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},
-				{add_ref,-1, 0, 0,-2}}, user, pointed_thing)
-
-		elseif cdir == 8 then  -- pointed south
-			run_list({{aw, 3, 0, a, 0},{aw, 3, 0, a,-1},{aw, 3, 0, a,-2},
-				{aw,-3, 0, a, 0},{aw,-3, 0, a,-1},{aw,-3, 0, a,-2},
-				{ec, 3, 0, a,-3},{ec, 2, 0, a+1,-3},{ec, 1, 0, c+1,-3},{ec, 0, 0, c+1,-3},{ec,-1, 0, c+1,-3},{ec,-2, 0, a+1,-3},{ec,-3, 0, a,-3},
-				{ds,-2, 0, a,-2},{dt,-1, 0, c,-2},{dt, 0, 0, c,-2},{dt, 1, 0, c,-2},{ds, 2, 0, a,-2},
-				{ds,-2, 0, a,-1},{dt,-1, 0, c,-1},{dt, 0, 0, c,-1},{dt, 1, 0, c,-1},{ds, 2, 0, a,-1},
-				{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
-				{add_ref,0, 0, 0,-2}}, user, pointed_thing)
-
-		elseif cdir == 9 then  -- pointed south-southeast
-			run_list({{aw, 3, 0, a, 0},{aw, 4, 0, a,-1},{aw, 4, 0, a,-2},
-				{aw,-3, 0, a,-1},{aw,-2, 0, a,-2},{aw,-2, 0, a,-3},
-				{ec, 4, 0, a,-3},{ec, 3, 0, a+1,-3},{ec, 2, 0, c+1,-3},{ec, 1, 0, c+1,-3},{ec, 0, 0, c+1,-3},{ec,-1, 0, a+1,-3},
-				{ds,-1, 0, a,-2},{dt, 0, 0, c,-2},{dt, 1, 0, c,-2},{dt, 2, 0, c,-2},{ds, 3, 0, a,-2},
-				{ds,-2, 0, a,-1},{dt,-1, 0, c,-1},{dt, 0, 0, c,-1},{dt, 1, 0, c,-1},{dt, 2, 0, c,-1},{ds, 3, 0, a,-1},
-				{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
-				{add_ref,1, 0, 0,-2}}, user, pointed_thing)
-
-		elseif cdir == 10 then  -- pointed southeast
-			run_list({{aw, 2, 0, a, 2},{aw, 3, 0, a, 1},
-				{aw,-2, 0, a,-2},{aw,-1, 0, a,-3},
-				{ec, 4, 0, a, 0},{ec, 3, 0, a,-1},{ec, 2, 0, c,-1},{ec, 1, 0, c,-2},{ec, 1, 0, a,-3},{ec, 0, 0, a,-4},
-				{ds, 0, 0, a,-3},
-				{ds,-1, 0, a,-2},{dt, 0, 0, c,-2},
-				{ds,-2, 0, a,-1},{dt,-1, 0, c,-1},{dt, 0, 0, c,-1},{dt, 1, 0, c,-1},
-				{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{dt, 2, 0, c, 0},{ds, 3, 0, a, 0},
-				{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
-				{ds, 1, 0, a, 2},
-				{add_ref, 1, 0, 0,-1}}, user, pointed_thing)
-
-		elseif cdir == 11 then  -- pointed east-southeast
-			run_list({{aw, 1, 0, a, 3},{aw, 2, 0, a, 2},{aw, 3, 0, a, 2},
-				{aw, 0, 0, a,-3},{aw, 1, 0, a,-4},{aw, 2, 0, a,-4},
-				{ec, 3, 0, a+1, 1},{ec, 3, 0, c+1, 0},{ec, 3, 0, c+1,-1},{ec, 3, 0, c+1,-2},{ec, 3, 0, a+1,-3},{ec, 3, 0, a,-4},
-				{ds, 1, 0, a,-3},{ds, 2, 0, a,-3},
-				{ds, 0, 0, a,-2},{dt, 1, 0, c,-2},{dt, 2, 0, c,-2},
-				{dt, 0, 0, c,-1},{dt, 1, 0, c,-1},{dt, 2, 0, c,-1},
-				{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{dt, 2, 0, c, 0},
-				{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
-				{ds, 1, 0, a, 2},
-				{add_ref, 2, 0, 0,-1}}, user, pointed_thing)
-
-		elseif cdir == 12 then  -- pointed east
-			run_list({{aw, 0, 0, a, 3},{aw, 1, 0, a, 3},{aw, 2, 0, a, 3},
-				{aw, 0, 0, a,-3},{aw, 1, 0, a,-3},{aw, 2, 0, a,-3},
-				{ec, 3, 0, a, 3},{ec, 3, 0, a+1, 2},{ec, 3, 0, c+1, 1},{ec, 3, 0, c+1, 0},{ec, 3, 0, c+1,-1},{ec, 3, 0, a+1,-2},{ec, 3, 0, a,-3},
-				{ds, 0, 0, a,-2},{ds, 1, 0, a,-2},{ds, 2, 0, a,-2},
-				{dt, 0, 0, c,-1},{dt, 1, 0, c,-1},{dt, 2, 0, c,-1},
-				{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{dt, 2, 0, c, 0},
-				{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},{dt, 2, 0, c, 1},
-				{ds, 0, 0, a, 2},{ds, 1, 0, a, 2},{ds, 2, 0, a, 2},
-				{add_ref, 2, 0, 0, 0}}, user, pointed_thing)
-
-		elseif cdir == 13 then  -- pointed east-northeast
-			run_list({{aw, 0, 0, a, 3},{aw, 1, 0, a, 4},{aw, 2, 0, a, 4},
-				{aw, 1, 0, a,-3},{aw, 2, 0, a,-2},{aw, 3, 0, a,-2},
-				{ec, 3, 0, a, 4},{ec, 3, 0, a+1, 3},{ec, 3, 0, c+1, 2},{ec, 3, 0, c+1, 1},{ec, 3, 0, c+1, 0},{ec, 3, 0, a+1,-1},
-				{ds, 1, 0, a,-2},
-				{dt, 0, 0, c,-1},{dt, 1, 0, c,-1},{ds, 2, 0, a,-1},
-				{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{dt, 2, 0, c, 0},
-				{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},{dt, 2, 0, c, 1},
-				{ds, 0, 0, a, 2},{dt, 1, 0, c, 2},{dt, 2, 0, c, 2},
-				{ds, 1, 0, a, 3},{ds, 2, 0, a, 3},
-				{add_ref, 2, 0, 0, 1}}, user, pointed_thing)
-
-		elseif cdir == 14 then  -- pointed northeast
-			run_list({{aw,-2, 0, a, 2},{aw,-1, 0, a, 3},
-				{aw, 2, 0, a,-2},{aw, 3, 0, a,-1},
-				{ec, 0, 0, a, 4},{ec, 1, 0, a, 3},{ec, 1, 0, c, 2},{ec, 2, 0, c, 1},{ec, 3, 0, a, 1},{ec, 4, 0, a, 0},
-				{ds, 1, 0, a,-2},
-				{dt, 1, 0, c,-1},{ds, 2, 0, a,-1},
-				{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{dt, 2, 0, c, 0},{ds, 3, 0, a, 0},
-				{ds,-2, 0, a, 1},{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},
-				{ds,-1, 0, a, 2},{dt, 0, 0, c, 2},
-				{ds, 0, 0, a, 3},
-				{add_ref, 1, 0, 0, 1}}, user, pointed_thing)
-
-		elseif cdir == 15 then  -- pointed north-northeast
-			run_list({{aw,-3, 0, a, 1},{aw,-2, 0, a, 2},{aw,-2, 0, a, 3},
-				{aw, 3, 0, a, 0},{aw, 4, 0, a, 1},{aw, 4, 0, a, 2},
-				{ec,-1, 0, a+1, 3},{ec, 0, 0, c+1, 3},{ec, 1, 0, c+1, 3},{ec, 2, 0, c+1, 3},{ec, 3, 0, a+1, 3},{ec, 4, 0, a, 3},
-				{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
-				{ds,-2, 0, a, 1},{dt,-1, 0, c, 1},{dt, 0, 0, c, 1},{dt, 1, 0, c, 1},{dt, 2, 0, c, 1},{ds, 3, 0, a, 1},
-				{ds,-1, 0, a, 2},{dt, 0, 0, c, 2},{dt, 1, 0, c, 2},{dt, 2, 0, c, 2},{ds, 3, 0, a, 2},
-				{add_ref, 1, 0, 0, 2}}, user, pointed_thing)
-
--- Dig for slope up
-		elseif cdir == 16 then  -- pointed north (0, dig up)
-			run_list({{aw,-3, 0, a, 0},{aw,-3, 0, a+1, 1},{aw,-3, 1, a+1, 2},
-				{aw, 3, 0, a, 0},{aw, 3, 0, a+1, 1},{aw, 3, 1, a+1, 2},
-				{ec,-3, 1, a+1, 3},{ec,-2, 1, a+2, 3},{ec,-1, 1, c+2, 3},{ec, 0, 1, c+2, 3},{ec, 1, 1, c+2, 3},{ec, 2, 1, a+2, 3},{ec, 3, 1, a+1, 3},
-				{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
-				{ds,-2, 0, a+1, 1},{dt,-1, 0, c+1, 1},{dt, 0, 0, c+1, 1},{dt, 1, 0, c+1, 1},{ds, 2, 0, a+1, 1},
-				{ds,-2, 1, a+1, 2},{dt,-1, 1, c+1, 2},{dt, 0, 1, c+1, 2},{dt, 1, 1, c+1, 2},{ds, 2, 1, a+1, 2},
-				{add_ref, 0, 1, 0, 2},
-				{add_brace,-1, 0, 0, 2},
-				{add_brace, 1, 0, 0, 2}}, user, pointed_thing)
-
-		elseif cdir == 17 then  -- pointed northwest (2, dig up)
-			run_list({{aw,-2, 0, a+1,-2},{aw,-3, 1, a+1,-1},
-				{aw, 2, 0, a+1, 2},{aw, 1, 1, a+1, 3},
-				{ec,-4, 1, a+1, 0},{ec,-3, 1, c+1, 1},{ec,-2, 1, c+2, 1},{ec,-1, 1, c+2, 2},{ec,-1, 1, c+1, 3},{ec, 0, 1, a+1, 4},
-				{ds,-1, 0, a,-2},
-				{ds,-2, 0, a+1,-1},{dt,-1, 0, c,-1},
-				{ds,-3, 1, a+1, 0},{dt,-2, 1, c+1, 0},{dt,-1, 0, c+1, 0},{dt, 0, 0, c+1, 0},
-				{dt,-1, 1, c+1, 1},{dt, 0, 0, c+1, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
-				{dt, 0, 1, c+1, 2},{ds, 1, 0, a+1, 2},
-				{ds, 0, 1, a+1, 3},
-				{add_ref,-1, 1, 0, 1},
-				{add_brace,-2, 0, 0, 0},
-				{add_brace, 0, 0, 0, 2}}, user, pointed_thing)
-
-		elseif cdir == 18 then  -- pointed west (4, dig up)
-			run_list({{aw, 0, 0, a,-3},{aw,-1, 0, a+1,-3},{aw,-2, 1, a+1,-3},
-				{aw, 0, 0, a, 3},{aw,-1, 0, a+1, 3},{aw,-2, 1, a+1, 3},
-				{ec,-3, 1, a+1,-3},{ec,-3, 1, a+2,-2},{ec,-3, 1, c+2,-1},{ec,-3, 1, c+2, 0},{ec,-3, 1, c+2, 1},{ec,-3, 1, a+2, 2},{ec,-3, 1, a+1, 3},
-				{ds,-2, 1, a+1,-2},{ds,-1, 0, a+1,-2},{ds, 0, 0, a,-2},
-				{dt,-2, 1, c+1,-1},{dt,-1, 0, c+1,-1},{dt, 0, 0, c,-1},
-				{dt,-2, 1, c+1, 0},{dt,-1, 0, c+1, 0},{dt, 0, 0, c, 0},
-				{dt,-2, 1, c+1, 1},{dt,-1, 0, c+1, 1},{dt, 0, 0, c, 1},
-				{ds,-2, 1, a+1, 2},{ds,-1, 0, a+1, 2},{ds, 0, 0, a, 2},
-				{add_ref,-2, 1, 0, 0},
-				{add_brace,-2, 0, 0,-1},
-				{add_brace,-2, 0, 0, 1}}, user, pointed_thing) 
-
-		elseif cdir == 19 then  -- pointed southwest (6, dig up)
-			run_list({{aw, 2, 0, a+1,-2},{aw, 1, 1, a+1,-3},
-				{aw,-2, 0, a+1, 2},{aw,-3, 1, a+1, 1},
-				{ec, 0, 1, a+1,-4},{ec,-1, 1, c+1,-3},{ec,-1, 1, c+2,-2},{ec,-2, 1, c+2,-1},{ec,-3, 1, c+1,-1},{ec,-4, 1, a+1, 0},
-				{ds, 0, 1, a+1,-3},
-				{dt, 0, 1, c+1,-2},{ds, 1, 0, a+1,-2},
-				{dt,-1, 1, c+1,-1},{dt, 0, 0, c+1,-1},{dt, 1, 0, c,-1},{ds, 2, 0, a,-1},
-				{ds,-3, 1, a+1, 0},{dt,-2, 1, c+1, 0},{dt,-1, 0, c+1, 0},{dt, 0, 0, c+1, 0},
-				{ds,-2, 0, a+1, 1},{dt,-1, 0, c, 1},
-				{ds,-1, 0, a, 2},
-				{add_ref,-1, 1, 0,-1},
-				{add_brace,-2, 0, 0, 0},
-				{add_brace, 0, 0, 0,-2}}, user, pointed_thing) 
-
-		elseif cdir == 20 then  -- pointed south (8, dig up)
-			run_list({{aw, 3, 0, a, 0},{aw, 3, 0, a+1,-1},{aw, 3, 1, a+1,-2},
-				{aw,-3, 0, a, 0},{aw,-3, 0, a+1,-1},{aw,-3, 1, a+1,-2},
-				{ec, 3, 1, a+1,-3},{ec, 2, 1, a+2,-3},{ec, 1, 1, c+2,-3},{ec, 0, 1, c+2,-3},{ec,-1, 1, c+2,-3},{ec,-2, 1, a+2,-3},{ec,-3, 1, a+1,-3},
-				{ds,-2, 1, a+1,-2},{dt,-1, 1, c+1,-2},{dt, 0, 1, c+1,-2},{dt, 1, 1, c+1,-2},{ds, 2, 1, a+1,-2},
-				{ds,-2, 0, a+1,-1},{dt,-1, 0, c+1,-1},{dt, 0, 0, c+1,-1},{dt, 1, 0, c+1,-1},{ds, 2, 0, a+1,-1},
-				{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
-				{add_ref,0, 1, 0,-2},
-				{add_brace,-1, 0, 0,-2},
-				{add_brace, 1, 0, 0,-2}}, user, pointed_thing) 
-
-		elseif cdir == 21 then  -- pointed southeast (10, dig up)
-			run_list({{aw, 2, 0, a+1, 2},{aw, 3, 1, a+1, 1},
-				{aw,-2, 0, a+1,-2},{aw,-1, 1, a+1,-3},
-				{ec, 4, 1, a+1, 0},{ec, 3, 1, c+1,-1},{ec, 2, 1, c+2,-1},{ec, 1, 1, c+2,-2},{ec, 1, 1, c+1,-3},{ec, 0, 1, a+1,-4},
-				{ds, 0, 1, a+1,-3},
-				{ds,-1, 0, a+1,-2},{dt, 0, 1, c+1,-2},
-				{ds,-2, 0, a,-1},{dt,-1, 0, c,-1},{dt, 0, 0, c+1,-1},{dt, 1, 1, c+1,-1},
-				{dt, 0, 0, c+1, 0},{dt, 1, 0, c+1, 0},{dt, 2, 1, c+1, 0},{ds, 3, 1, a+1, 0},
-				{dt, 1, 0, c, 1},{ds, 2, 0, a+1, 1},
-				{ds, 1, 0, a, 2},
-				{add_ref, 1, 1, 0,-1},
-				{add_brace, 2, 0, 0, 0},
-				{add_brace, 0, 0, 0,-2}}, user, pointed_thing) 
-
-		elseif cdir == 22 then  -- pointed east (12, dig up)
-			run_list({{aw, 0, 0, a, 3},{aw, 1, 0, a+1, 3},{aw, 2, 1, a+1, 3},
-				{aw, 0, 0, a,-3},{aw, 1, 0, a+1,-3},{aw, 2, 1, a+1,-3},
-				{ec, 3, 1, a+1, 3},{ec, 3, 1, a+2, 2},{ec, 3, 1, c+2, 1},{ec, 3, 1, c+2, 0},{ec, 3, 1, c+2,-1},{ec, 3, 1, a+2,-2},{ec, 3, 1, a+1,-3},
-				{ds, 0, 0, a,-2},{ds, 1, 0, a+1,-2},{ds, 2, 1, a+1,-2},
-				{dt, 0, 0, c,-1},{dt, 1, 0, c+1,-1},{dt, 2, 1, c+1,-1},
-				{dt, 0, 0, c, 0},{dt, 1, 0, c+1, 0},{dt, 2, 1, c+1, 0},
-				{dt, 0, 0, c, 1},{dt, 1, 0, c+1, 1},{dt, 2, 1, c+1, 1},
-				{ds, 0, 0, a, 2},{ds, 1, 0, a+1, 2},{ds, 2, 1, a+1, 2},
-				{add_ref, 2, 1, 0, 0},
-				{add_brace, 2, 0, 0, 1},
-				{add_brace, 2, 0, 0,-1}}, user, pointed_thing) 
-
-		elseif cdir == 23 then  -- pointed northeast (14, dig up)
-			run_list({{aw,-2, 0, a+1, 2},{aw,-1, 1, a+1, 3},
-				{aw, 2, 0, a+1,-2},{aw, 3, 1, a+1,-1},
-				{ec, 0, 1, a+1, 4},{ec, 1, 1, c+1, 3},{ec, 1, 1, c+2, 2},{ec, 2, 1, c+2, 1},{ec, 3, 1, c+1, 1},{ec, 4, 1, a+1, 0},
-				{ds, 1, 0, a,-2},
-				{dt, 1, 0, c,-1},{ds, 2, 0, a+1,-1},
-				{dt, 0, 0, c+1, 0},{dt, 1, 0, c+1, 0},{dt, 2, 1, c+1, 0},{ds, 3, 1, a+1, 0},
-				{ds,-2, 0, a, 1},{dt,-1, 0, c, 1},{dt, 0, 0, c+1, 1},{dt, 1, 1, c+1, 1},
-				{ds,-1, 0, a+1, 2},{dt, 0, 1, c+1, 2},
-				{ds, 0, 1, a+1, 3},
-				{add_ref, 1, 1, 0, 1},
-				{add_brace, 0, 0, 0, 2},
-				{add_brace, 2, 0, 0, 0}}, user, pointed_thing) 
-
--- Dig for slope down
-		elseif cdir == 24 then  -- pointed north (0, dig down)
-			run_list({{aw,-3, 0, a, 0},{aw,-3,-1, a, 1},{aw,-3,-1, a-1, 2},
-				{aw, 3, 0, a, 0},{aw, 3,-1, a, 1},{aw, 3,-1, a-1, 2},
-				{ec,-3,-1, a-1, 3},{ec,-2,-1, a, 3},{ec,-1,-1, c, 3},{ec, 0,-1, c, 3},{ec, 1,-1, c, 3},{ec, 2,-1, a, 3},{ec, 3,-1, a-1, 3},
-				{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
-				{ds,-2,-1, a, 1},{dt,-1,-1, c, 1},{dt, 0,-1, c, 1},{dt, 1,-1, c, 1},{ds, 2,-1, a, 1},
-				{ds,-2,-1, a-1, 2},{dt,-1,-1, c-1, 2},{dt, 0,-1, c-1, 2},{dt, 1,-1, c-1, 2},{ds, 2,-1, a-1, 2},
-				{add_ref, 0,-1, 0, 2},
-				{add_brace,-1,-1, 0, 0},
-				{add_brace, 1,-1, 0, 0}}, user, pointed_thing)
-
-		elseif cdir == 25 then  -- pointed northwest (2, dig down)
-			run_list({{aw,-2,-1, a,-2},{aw,-3,-1, a,-1},
-				{aw, 2,-1, a, 2},{aw, 1,-1, a, 3},
-				{ec,-4,-1, a-1, 0},{ec,-3,-1, a, 1},{ec,-2,-1, c, 1},{ec,-1,-1, c, 2},{ec,-1,-1, a, 3},{ec, 0,-1, a-1, 4},
-				{ds,-1, 0, a,-2},
-				{ds,-2,-1, a,-1},{dt,-1, 0, c,-1},
-				{ds,-3,-1, a-1, 0},{dt,-2,-1, c-1, 0},{dt,-1,-1, c, 0},{dt, 0, 0, c, 0},
-				{dt,-1,-1, c, 1},{dt, 0,-1, c, 1},{dt, 1, 0, c, 1},{ds, 2, 0, a, 1},
-				{dt, 0,-1, c-1, 2},{ds, 1,-1, a, 2},
-				{ds, 0,-1, a-1, 3},
-				{add_ref,-1,-1, 0, 1},
-				{add_brace,-1,-1, 0,-1},
-				{add_brace, 1,-1, 0, 1}}, user, pointed_thing)
-
-		elseif cdir == 26 then  -- pointed west (4, dig down)
-			run_list({{aw, 0, 0, a,-3},{aw,-1,-1, a,-3},{aw,-2,-1, a-1,-3},
-				{aw, 0, 0, a, 3},{aw,-1,-1, a, 3},{aw,-2,-1, a-1, 3},
-				{ec,-3,-1, a-1,-3},{ec,-3,-1, a,-2},{ec,-3,-1, c,-1},{ec,-3,-1, c, 0},{ec,-3,-1, c, 1},{ec,-3,-1, a, 2},{ec,-3,-1, a-1, 3},
-				{ds,-2,-1, a-1,-2},{ds,-1,-1, a,-2},{ds, 0, 0, a,-2},
-				{dt,-2,-1, c-1,-1},{dt,-1,-1, c,-1},{dt, 0, 0, c,-1},
-				{dt,-2,-1, c-1, 0},{dt,-1,-1, c, 0},{dt, 0, 0, c, 0},
-				{dt,-2,-1, c-1, 1},{dt,-1,-1, c, 1},{dt, 0, 0, c, 1},
-				{ds,-2,-1, a-1, 2},{ds,-1,-1, a, 2},{ds, 0, 0, a, 2},
-				{add_ref,-2,-1, 0, 0},
-				{add_brace, 0,-1, 0, 1},
-				{add_brace, 0,-1, 0,-1}}, user, pointed_thing)
-
-		elseif cdir == 27 then  -- pointed southwest (6, dig down)
-			run_list({{aw, 2,-1, a,-2},{aw, 1,-1, a,-3},
-				{aw,-2,-1, a, 2},{aw,-3,-1, a, 1},
-				{ec, 0,-1, a-1,-4},{ec,-1,-1, a,-3},{ec,-1, -1, c,-2},{ec,-2,-1, c,-1},{ec,-3,-1, a,-1},{ec,-4,-1, a-1, 0},
-				{ds, 0,-1, a-1,-3},
-				{dt, 0,-1, c-1,-2},{ds, 1,-1, a,-2},
-				{dt,-1,-1, c,-1},{dt, 0,-1, c,-1},{dt, 1, 0, c,-1},{ds, 2, 0, a,-1},
-				{ds,-3,-1, a-1, 0},{dt,-2,-1, c-1, 0},{dt,-1,-1, c, 0},{dt, 0, 0, c, 0},
-				{ds,-2,-1, a, 1},{dt,-1, 0, c, 1},
-				{ds,-1, 0, a, 2},
-				{add_ref,-1,-1, 0,-1},
-				{add_brace,-1,-1, 0, 1},
-				{add_brace, 1,-1, 0,-1}}, user, pointed_thing)
-
-		elseif cdir == 28 then  -- pointed south (8, dig down)
-			run_list({{aw, 3, 0, a, 0},{aw, 3,-1, a,-1},{aw, 3,-1, a-1,-2},
-				{aw,-3, 0, a, 0},{aw,-3,-1, a,-1},{aw,-3,-1, a-1,-2},
-				{ec, 3,-1, a-1,-3},{ec, 2,-1, a,-3},{ec, 1,-1, c,-3},{ec, 0,-1, c,-3},{ec,-1,-1, c,-3},{ec,-2,-1, a,-3},{ec,-3,-1, a-1,-3},
-				{ds,-2,-1, a-1,-2},{dt,-1,-1, c-1,-2},{dt, 0,-1, c-1,-2},{dt, 1,-1, c-1,-2},{ds, 2,-1, a-1,-2},
-				{ds,-2,-1, a,-1},{dt,-1,-1, c,-1},{dt, 0,-1, c,-1},{dt, 1,-1, c,-1},{ds, 2,-1, a,-1},
-				{ds,-2, 0, a, 0},{dt,-1, 0, c, 0},{dt, 0, 0, c, 0},{dt, 1, 0, c, 0},{ds, 2, 0, a, 0},
-				{add_ref, 0,-1, 0,-2},
-				{add_brace,-1,-1, 0, 0},
-				{add_brace, 1,-1, 0, 0}}, user, pointed_thing)
-
-		elseif cdir == 29 then  -- pointed southeast (10, dig down)
-			run_list({{aw, 2,-1, a, 2},{aw, 3,-1, a, 1},
-				{aw,-2,-1, a,-2},{aw,-1,-1, a,-3},
-				{ec, 4,-1, a-1, 0},{ec, 3,-1, a,-1},{ec, 2,-1, c,-1},{ec, 1,-1, c,-2},{ec, 1,-1, a,-3},{ec, 0,-1, a-1,-4},
-				{ds, 0,-1, a-1,-3},
-				{ds,-1,-1, a,-2},{dt, 0,-1, c-1,-2},
-				{ds,-2, 0, a,-1},{dt,-1, 0, c,-1},{dt, 0,-1, c,-1},{dt, 1,-1, c,-1},
-				{dt, 0, 0, c, 0},{dt, 1,-1, c, 0},{dt, 2,-1, c-1, 0},{ds, 3,-1, a-1, 0},
-				{dt, 1, 0, c, 1},{ds, 2,-1, a, 1},
-				{ds, 1, 0, a, 2},
-				{add_ref, 1,-1, 0,-1},
-				{add_brace,-1,-1, 0,-1},
-				{add_brace, 1,-1, 0, 1}}, user, pointed_thing)
-
-		elseif cdir == 30 then  -- pointed east (12, dig down)
-			run_list({{aw, 0, 0, a, 3},{aw, 1,-1, a, 3},{aw, 2,-1, a-1, 3},
-				{aw, 0, 0, a,-3},{aw, 1,-1, a,-3},{aw, 2,-1, a-1,-3},
-				{ec, 3,-1, a-1, 3},{ec, 3,-1, a, 2},{ec, 3,-1, c, 1},{ec, 3,-1, c, 0},{ec, 3,-1, c,-1},{ec, 3,-1, a,-2},{ec, 3,-1, a-1,-3},
-				{ds, 0, 0, a,-2},{ds, 1,-1, a,-2},{ds, 2,-1, a-1,-2},
-				{dt, 0, 0, c,-1},{dt, 1,-1, c,-1},{dt, 2,-1, c-1,-1},
-				{dt, 0, 0, c, 0},{dt, 1,-1, c, 0},{dt, 2,-1, c-1, 0},
-				{dt, 0, 0, c, 1},{dt, 1,-1, c, 1},{dt, 2,-1, c-1, 1},
-				{ds, 0, 0, a, 2},{ds, 1,-1, a, 2},{ds, 2,-1, a-1, 2},
-				{add_ref, 2,-1, 0, 0},
-				{add_brace, 0,-1, 0, 1},
-				{add_brace, 0,-1, 0,-1}}, user, pointed_thing)
-
-		elseif cdir == 31 then  -- pointed northeast (14, dig down)
-			run_list({{aw,-2,-1, a, 2},{aw,-1,-1, a, 3},
-				{aw, 2,-1, a,-2},{aw, 3,-1, a,-1},
-				{ec, 0,-1, a-1, 4},{ec, 1,-1, a, 3},{ec, 1,-1, c, 2},{ec, 2,-1, c, 1},{ec, 3,-1, a, 1},{ec, 4,-1, a-1, 0},
-				{ds, 1, 0, a,-2},
-				{dt, 1, 0, c,-1},{ds, 2,-1, a,-1},
-				{dt, 0, 0, c, 0},{dt, 1,-1, c, 0},{dt, 2,-1, c-1, 0},{ds, 3,-1, a-1, 0},
-				{ds,-2, 0, a, 1},{dt,-1, 0, c, 1},{dt, 0,-1, c, 1},{dt, 1,-1, c, 1},
-				{ds,-1,-1, a, 2},{dt, 0,-1, c-1, 2},
-				{ds, 0,-1, a-1, 3},
-				{add_ref, 1,-1, 0, 1},  -- fixed bug
-				{add_brace,-1,-1, 0, 0},
-				{add_brace, 1,-1, 0,-1}}, user, pointed_thing)
-		end
+		local dig_list = dig_patterns[dig_lookup[cdir][1]]
+		local flip = dig_lookup[cdir][2]
+		local rotation = dig_lookup[cdir][3]
+		run_list(dig_list, flip, rotation, user, pointed_thing)
 		add_light(torch_search_radius, user, pointed_thing)
 	end
 end
