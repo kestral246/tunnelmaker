@@ -138,38 +138,16 @@ minetest.register_globalstep(function(dtime)
 end)
 
 local images = {
-		"tunnelmaker_0.png",
-		"tunnelmaker_1.png",
-		"tunnelmaker_2.png",
-		"tunnelmaker_3.png",
-		"tunnelmaker_4.png",
-		"tunnelmaker_5.png",
-		"tunnelmaker_6.png",
-		"tunnelmaker_7.png",
-		"tunnelmaker_8.png",
-		"tunnelmaker_9.png",
-		"tunnelmaker_10.png",
-		"tunnelmaker_11.png",
-		"tunnelmaker_12.png",
-		"tunnelmaker_13.png",
-		"tunnelmaker_14.png",
-		"tunnelmaker_15.png",
-		"tunnelmaker_16.png",   -- 0 up
-		"tunnelmaker_17.png",   -- 2 up
-		"tunnelmaker_18.png",   -- 4 up
-		"tunnelmaker_19.png",   -- 6 up
-		"tunnelmaker_20.png",   -- 8 up
-		"tunnelmaker_21.png",   -- 10 up
-		"tunnelmaker_22.png",   -- 12 up
-		"tunnelmaker_23.png",   -- 14 up
-		"tunnelmaker_24.png",   -- 0 down
-		"tunnelmaker_25.png",   -- 2 down
-		"tunnelmaker_26.png",   -- 4 down
-		"tunnelmaker_27.png",   -- 6 down
-		"tunnelmaker_28.png",   -- 8 down
-		"tunnelmaker_29.png",   -- 10 down
-		"tunnelmaker_30.png",   -- 12 down
-		"tunnelmaker_31.png",   -- 14 down
+		"tunnelmaker_0.png", "tunnelmaker_1.png", "tunnelmaker_2.png", "tunnelmaker_3.png",
+		"tunnelmaker_4.png", "tunnelmaker_5.png", "tunnelmaker_6.png", "tunnelmaker_7.png",
+		"tunnelmaker_8.png", "tunnelmaker_9.png", "tunnelmaker_10.png", "tunnelmaker_11.png",
+		"tunnelmaker_12.png", "tunnelmaker_13.png", "tunnelmaker_14.png", "tunnelmaker_15.png",
+		-- up [0, 2, .., 14]
+		"tunnelmaker_16.png", "tunnelmaker_17.png", "tunnelmaker_18.png", "tunnelmaker_19.png",
+		"tunnelmaker_20.png", "tunnelmaker_21.png", "tunnelmaker_22.png", "tunnelmaker_23.png",
+		-- down [0, 2, .., 14]
+		"tunnelmaker_24.png", "tunnelmaker_25.png", "tunnelmaker_26.png", "tunnelmaker_27.png",
+		"tunnelmaker_28.png", "tunnelmaker_29.png", "tunnelmaker_30.png", "tunnelmaker_31.png",
 }
 
 -- tests whether position is in desert-type biomes, such as desert, sandstone_desert, cold_desert, etc
