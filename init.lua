@@ -4,7 +4,13 @@
 -- all 16 track directions, along with slopes up and down.
 -- 
 -- by David G (kestral246@gmail.com)
--- and mikola
+-- and by Mikola
+
+-- Version 2.0-pre-2 - 2019-01-03
+-- Added Lock Desert Mode user config, but only when is_desert works.
+-- Trying to deal better with transition regions to and from desert.
+-- Stone coating will now change to desert stone, and vice versa.
+-- How about tm_ for config prefix?
 
 -- Version 2.0-pre-1 - 2019-01-02
 -- Updating configs (wip), simplified digging patterns, added shift+left-click user config formspec.
@@ -20,7 +26,7 @@
 -- software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>. 
 
 -- This config section is a work in progress.
--- I prefixed all the minetest.conf names with tunnel_, but don't know if that's really necessary.
+-- I prefixed all the minetest.conf names with tm_, but don't know if that's really necessary.
 
 -- User settable config variables (in game formspec):
 -----------------------------------------------------
@@ -28,48 +34,56 @@
 
 -- Default for Non-train tunnels.
 -- Disables the train-specific options.
-local nontrain_tunnel_default = minetest.settings:get_bool("tunnel_nontrain_tunnel_default", false)
+local nontrain_tunnel_default = minetest.settings:get_bool("tm_nontrain_tunnel_default", false)
 
 -- Default for Continuous updown digging.
 -- Allow digging up/down multiple times without resetting mode.
-local continuous_updown_default = minetest.settings:get_bool("tunnel_continuous_updown_default", false)
+local continuous_updown_default = minetest.settings:get_bool("tm_continuous_updown_default", false)
 
+-- Default for Lock Desert Mode is always false.
+-- This option only shows up if add_desert_material is enabled, and Minetest version is 5.x.
 
 -- Server settable config variables (minetest.conf):
 ----------------------------------------------------
 -- Ceiling lighting
 -- Default to torches, but allow using mese post lights.
-local use_mese_lights = minetest.settings:get_bool("tunnel_use_mese_lights", false)
+local use_mese_lights = minetest.settings:get_bool("tm_use_mese_lights", false)
 local lighting = "default:torch"
 if use_mese_lights then
 	lighting = "default:mese_post_light"
 end
 
+-- Allow the use of other materials in desert biomes
+local add_desert_material = minetest.settings:get_bool("tm_add_desert_material", false)
+
+-- Allow to replace water in air and a transparent coating tunnels
+local add_dry_tunnels = minetest.settings:get_bool("tm_add_dry_tunnels", true)
+
 -- Train specific options affected by nontrain_tunnel user setting
 -- I need two variables for each of these, so they can be restored when using formspec.
 
 -- Increase tunnel height
-local ith_train = (tonumber(minetest.settings:get("tunnel_height") or 5))-5
+local ith_train = (tonumber(minetest.settings:get("tm_increase_tunnel_height") or 5))-5
 local ith
 
 -- Add "arches" along the sides.
-local add_arches_train = minetest.settings:get_bool("tunnel_add_arches", true)
+local add_arches_train = minetest.settings:get_bool("tm_add_arches", true)
 local add_arches
 
 -- Add gravel mound and additional base
-local add_embankment_train = minetest.settings:get_bool("tunnel_add_embankment", true)
+local add_embankment_train = minetest.settings:get_bool("tm_add_embankment", true)
 local add_embankment
 
 -- Add markup for the railway advtrains
-local add_marking_train = minetest.settings:get_bool("tunnel_add_marking", true)
+local add_marking_train = minetest.settings:get_bool("tm_add_marking", true)
 local add_marking
 
 -- Allow to replace the coating of tunnels on a specific coating
-local add_tough_tunnels_train = minetest.settings:get_bool("tunnel_add_tough_tunnels", true)
+local add_tough_tunnels_train = minetest.settings:get_bool("tm_add_tough_tunnels", true)
 local add_tough_tunnels
 
 -- Allow wide paths in the woods. Greenpeace does not approve
-local add_wide_passage_train = minetest.settings:get_bool("tunnel_add_wide_passage", true)
+local add_wide_passage_train = minetest.settings:get_bool("tm_add_wide_passage", true)
 local add_wide_passage
 
 -- Set actual values based on nontrain_tunnel default.
@@ -89,36 +103,29 @@ else
 	add_wide_passage = add_wide_passage_train
 end
 
--- Allow to replace water in air and a transparent coating tunnels
-local add_dry_tunnels = minetest.settings:get_bool("tunnel_add_dry_tunnels", true)
-
--- Allow the use of other materials in desert biomes
-local add_desert_material = minetest.settings:get_bool("tunnel_add_desert_material", false)
-
 -- Materials
 
 -- Walls, floor and additional base (outside the desert)
-local coating_not_desert = minetest.settings:get("tunnel_coating_not_desert") or "default:stone"
+local coating_not_desert = minetest.settings:get("tm_material_for_coating_not_desert") or "default:stone"
 
 -- Walls, floor and additional base (in the desert)
-local coating_desert = minetest.settings:get("tunnel_coating_desert") or "default:desert_stone"
+local coating_desert = minetest.settings:get("tm_material_for_coating_desert") or "default:desert_stone"
 
 -- Walls in the water
-local glass_walls = minetest.settings:get("tunnel_glass_walls") or "default:glass"
+local glass_walls = minetest.settings:get("tm_material_for_glass_walls") or "default:glass"
 
 -- Embankment for railway tracks
-local embankment = minetest.settings:get("tunnel_embankment") or "default:gravel"
+local embankment = minetest.settings:get("tm_material_for_embankment") or "default:gravel"
 
 -- Railway markings for advtrains (outside the desert)
-local marking_not_desert = minetest.settings:get("tunnel_marking_not_desert") or "default:stone_block"
+local marking_not_desert = minetest.settings:get("tm_material_for_marking_not_desert") or "default:stone_block"
 
 -- Railway markings for advtrains (in the desert)
-local marking_desert = minetest.settings:get("tunnel_marking_desert") or "default:desert_stone_block"
+local marking_desert = minetest.settings:get("tm_material_for_marking_desert") or "default:desert_stone_block"
 
 
--- Hard coded config options
-----------------------------
-
+-- Hard coded config options?
+-----------------------------
 -- Add ceiling lighting (I question whether not having lights is usable.)
 local add_lighting = true
 
@@ -139,7 +146,10 @@ local user_config = {}
 minetest.register_on_joinplayer(function(player)
 	local pname = player:get_player_name()
 	tunnelmaker[pname] = {updown = 0, lastdir = -1, lastpos = {x = 0, y = 0, z = 0}}
-	user_config[pname] = {remove_refs = false, nontrain_tunnels = nontrain_tunnel_default, continuous_updown = continuous_updown_default}
+	user_config[pname] = {remove_refs = false, nontrain_tunnels = nontrain_tunnel_default,
+		continuous_updown = continuous_updown_default, lock_desert_mode = false,
+		use_desert_material = add_desert_material and minetest.get_biome_data and
+			string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert")}
 end)
 
 -- Delete player's state when player leaves
@@ -272,13 +282,17 @@ end
 
 register(embankment)
 
-
 -- Tests whether position is in desert-type biomes, such as desert, sandstone_desert, cold_desert, etc
 -- Always just returns false if can't determine biome (i.e., using 0.4.x version)
-local is_desert = function(pos)
+local is_desert = function(user, pos)
+	local pname = user:get_player_name()
 	if add_desert_material and minetest.get_biome_data then
-		local cur_biome = minetest.get_biome_name( minetest.get_biome_data(pos).biome )
-		return string.match(cur_biome, "desert")
+		if user_config[pname].lock_desert_mode then
+			return user_config[pname].use_desert_material
+		else
+			local cur_biome = minetest.get_biome_name( minetest.get_biome_data(pos).biome )
+			return string.match(cur_biome, "desert")
+		end
 	else
 		return false
 	end
@@ -293,7 +307,6 @@ end
 -- |3|2|0|0|0|2|3|
 -- |3|3|5|4|5|3|3|
 -- | |8|6|6|6|8| |
-
 
 local region0 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
@@ -343,9 +356,9 @@ local region3 = function(x, y, z, user, pointed_thing)
 		if minetest.registered_nodes[name] then
 			group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
 		end
-		if not(string.match(name, "water") or name == "air" or name == glass_walls or name == coating_not_desert or (add_embankment and name == "tunnelmaker:embankment") or name == marking_not_desert or name == marking_desert or name == lighting or string.match(name, "dtrack")) and add_tough_tunnels then
+		if not(string.match(name, "water") or name == "air" or name == glass_walls or (add_embankment and name == "tunnelmaker:embankment") or name == marking_not_desert or name == marking_desert or name == lighting or string.match(name, "dtrack")) and add_tough_tunnels then
 			if not group_flammable then
-				if is_desert(pos) then
+				if is_desert(user, pos) then
 					minetest.set_node(pos, {name = coating_desert})
 				else
 					minetest.set_node(pos, {name = coating_not_desert})
@@ -364,7 +377,7 @@ local region4 = function(x, y, z, user, pointed_thing)
 	local name = minetest.get_node(pos).name
 	if not string.match(name, "dtrack") then
 		if add_marking then
-			if is_desert(pos) then
+			if is_desert(user, pos) then
 				minetest.set_node(pos, {name = marking_desert})
 			else
 				minetest.set_node(pos, {name = marking_not_desert})
@@ -373,7 +386,7 @@ local region4 = function(x, y, z, user, pointed_thing)
 			if add_embankment then
 				minetest.set_node(pos, {name = "tunnelmaker:embankment"})
 			else
-				if is_desert(pos) then
+				if is_desert(user, pos) then
 					minetest.set_node(pos, {name = coating_desert})
 				else
 					minetest.set_node(pos, {name = coating_not_desert})
@@ -390,7 +403,7 @@ local region5 = function(x, y, z, user, pointed_thing)
 		if add_embankment then
 			minetest.set_node(pos, {name = "tunnelmaker:embankment"})
 		else
-			if is_desert(pos) then
+			if is_desert(user, pos) then
 				minetest.set_node(pos, {name = coating_desert})
 			else
 				minetest.set_node(pos, {name = coating_not_desert})
@@ -403,7 +416,7 @@ local region6 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
 	if not(name == coating_not_desert or name == marking_not_desert or name == marking_desert or string.match(name, "dtrack")) and add_embankment then
-		if is_desert(pos) then
+		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
 		else
 			minetest.set_node(pos, {name = coating_not_desert})
@@ -415,7 +428,7 @@ local region7 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
 	if not(name == coating_not_desert or name == marking_not_desert or name == marking_desert or string.match(name, "dtrack")) then
-		if is_desert(pos) then
+		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
 		else
 			minetest.set_node(pos, {name = coating_not_desert})
@@ -431,7 +444,7 @@ local region8 = function(x, y, z, user, pointed_thing)
 		group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
 	end
 	if not(name == coating_not_desert or name == marking_not_desert or name == marking_desert or string.match(name, "dtrack")) and add_embankment and (add_wide_passage or not(add_wide_passage or group_flammable)) then
-		if is_desert(pos) then
+		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
 		else
 			minetest.set_node(pos, {name = coating_not_desert})
@@ -716,13 +729,28 @@ for i,img in ipairs(images) do
 			local key_stats = player:get_player_control()
 			-- If sneak button held down when left-clicking tunnelmaker, brings up User Config formspec.
 			if key_stats.sneak then  -- Configuration formspec
-				local formspec = "size[4,3]"..
+				local formspec = "size[4.5,3.5]"..
 					"label[0.25,0.25;Tunnelmaker User Options]"..
 					"checkbox[0.25,0.75;remove_refs;Remove reference nodes;"..tostring(user_config[pname].remove_refs).."]"..
 					"checkbox[0.25,1.25;nontrain_tunnels;Dig non-train tunnels;"..tostring(user_config[pname].nontrain_tunnels).."]"..
 					"checkbox[0.25,1.75;continuous_updown;Continuous updown digging;"..tostring(user_config[pname].continuous_updown).."]"
-				minetest.show_formspec(pname, "tunnelmaker:form", formspec)
-			else
+				local formspec_dm = ""
+				local dmat = ""
+				local use_desert_material = user_config[pname].use_desert_material
+				if add_desert_material and minetest.get_biome_data then
+					if not user_config[pname].lock_desert_mode then
+						use_desert_material = string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert")
+						user_config[pname].use_desert_material = use_desert_material
+					end
+					if use_desert_material then
+						dmat = "Desert"
+					else
+						dmat = "Non-desert"
+					end
+					formspec_dm = "checkbox[0.25,2.25;lock_desert_mode;Lock desert mode to: "..dmat..";"..tostring(user_config[pname].lock_desert_mode).."]"
+				end
+				minetest.show_formspec(pname, "tunnelmaker:form", formspec..formspec_dm)
+			else  -- Dig single node, if pointing to one
 				if pos ~= nil then
 					minetest.node_dig(pos, minetest.get_node(pos), player)
 					minetest.sound_play("default_dig_dig_immediate", {pos=pos, max_hear_distance = 8, gain = 0.5})
@@ -785,6 +813,8 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		add_wide_passage = add_wide_passage_train
 	elseif fields.continuous_updown == "true" then user_config[pname].continuous_updown = true
 	elseif fields.continuous_updown == "false" then user_config[pname].continuous_updown = false
+	elseif fields.lock_desert_mode == "false" then user_config[pname].lock_desert_mode = false
+	elseif fields.lock_desert_mode == "true" then user_config[pname].lock_desert_mode = true
 	end
 	return true
 end)
@@ -794,7 +824,8 @@ end)
 -- Expose api
 local remove_marking = {}
 
-remove_marking.replace = function(player_pos)
+remove_marking.replace = function(player)
+	local player_pos = player:get_pos()
 	local count = 0
 
 	-- Gen pos1 and pos2
@@ -820,7 +851,7 @@ remove_marking.replace = function(player_pos)
 					if add_embankment then
 						data[vi] = minetest.get_content_id("tunnelmaker:embankment")
 					else
-						if is_desert({x=x, y=y, z=z}) then
+						if is_desert(player, {x=x, y=y, z=z}) then
 							data[vi] = minetest.get_content_id(coating_desert)
 						else
 							data[vi] = minetest.get_content_id(coating_not_desert)
@@ -839,7 +870,7 @@ end
 minetest.register_globalstep(function(dtime)
 	for _, player in ipairs(minetest.get_connected_players()) do
 		if user_config[player:get_player_name()].remove_refs then
-			remove_marking.replace(player:getpos())
+			remove_marking.replace(player)
 		end
 	end
 end)
