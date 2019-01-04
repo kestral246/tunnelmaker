@@ -6,6 +6,11 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-pre-3 - 2019-01-04
+-- Rearranged config options into different modes.
+-- Added base_coating config and updated regions 4 & 5 so they only fill in "holes" when not in Train mode.
+-- Added timer to disable Remove references after 60 seconds (configurable).
+
 -- Version 2.0-pre-2 - 2019-01-03
 -- Added Lock Desert Mode user config, but only when is_desert works.
 -- Trying to deal better with transition regions to and from desert.
@@ -28,114 +33,126 @@
 -- This config section is a work in progress.
 -- I prefixed all the minetest.conf names with tm_, but don't know if that's really necessary.
 
--- User settable config variables (in game formspec):
------------------------------------------------------
--- Default for Remove References is always false.
+-- Without embankment, base floor is always filled and coated to stone/desert stone. Regions 4 and 5.
+-- My version only filled, but didn't coat.
 
--- Default for Non-train tunnels.
--- Disables the train-specific options.
-local nontrain_tunnel_default = minetest.settings:get_bool("tm_nontrain_tunnel_default", false)
+-- Train mode - User defined, but server defines look and feel.
+---------------------------------------------------------------
+-- Set default for train mode
+local train_mode_default = minetest.settings:get_bool("tm_train_mode_default", true)
 
--- Default for Continuous updown digging.
--- Allow digging up/down multiple times without resetting mode.
+-- Train tunnels can be taller than 5 - give value to increment (e.g. 2 gives 5 + 2 = 7).
+local ith_config = (tonumber(minetest.settings:get("tm_increase_tunnel_height") or 5))-5
+local ith
+
+-- Train tunnels can have "arches" along the sides.
+local add_arches_config = minetest.settings:get_bool("tm_add_arches", true)
+local add_arches
+
+-- Train tunnels can be lined with a coating.
+local add_tough_tunnels_config = minetest.settings:get_bool("tm_add_tough_tunnels", true)
+local add_tough_tunnels
+
+-- Train track can have an embankment (gravel mound and additional base).
+local add_embankment_config = minetest.settings:get_bool("tm_add_embankment", true)
+local add_embankment
+
+-- Train track without embankment have coating applied to ground.
+local base_coating_config = true
+local base_coating
+
+-- Train track can have wide paths in the woods. Greenpeace does not approve.
+local add_wide_passage_config = minetest.settings:get_bool("tm_add_wide_passage", true)
+local add_wide_passage
+
+-- Reference marks are added to help lay advtrains track.
+local add_marking_config = true
+local add_marking
+
+-- User has option to remove reference marks when passing over them. This option is turned off after
+-- 60 seconds by default, but time limit can be changed here.
+local remove_refs_enable_time = tonumber(minetest.settings:get("tm_remove_refs_enable_time") or 60)
+
+-- Material for coating for walls and floor (outside of desert)
+local coating_not_desert = minetest.settings:get("tm_material_for_coating_not_desert") or "default:stone"
+
+-- Material for train track embankment
+local embankment = minetest.settings:get("tm_material_for_embankment") or "default:gravel"
+
+-- Material for reference marks for advtrains (outside of desert)
+local marking_not_desert = minetest.settings:get("tm_material_for_marking_not_desert") or "default:stone_block"
+
+
+-- Desert mode - Server defined. Needs Minetest version 5.0+.
+-------------------------------------------------------------
+-- Enable desert mode - can use different materials when in the desert.
+-- When desert mode is enabled, user gets additional option to Lock desert mode to current state
+-- of being in desert or not. Useful to define materials used when in desert transition regions.
+local add_desert_material = minetest.settings:get_bool("tm_add_desert_material", false)
+
+-- Material for coating for walls and floor in desert.
+local coating_desert = minetest.settings:get("tm_material_for_coating_desert") or "default:desert_stone"
+
+-- Material for reference marks for advtrains in desert.
+local marking_desert = minetest.settings:get("tm_material_for_marking_desert") or "default:desert_stone_block"
+
+
+-- Water tunnel mode - Server defined.
+--------------------------------------
+-- Allow to replace water in air and a transparent coating tunnels
+local add_dry_tunnels = minetest.settings:get_bool("tm_add_dry_tunnels", true)
+
+-- Material for coating for walls in the water.
+local glass_walls = minetest.settings:get("tm_material_for_glass_walls") or "default:glass"
+
+
+-- Other options
+---------------
+-- User can set whether to use continuous updown digging, which allows digging up/down multiple
+-- times without resetting mode. Set default for this here.
 local continuous_updown_default = minetest.settings:get_bool("tm_continuous_updown_default", false)
 
--- Default for Lock Desert Mode is always false.
--- This option only shows up if add_desert_material is enabled, and Minetest version is 5.x.
-
--- Server settable config variables (minetest.conf):
-----------------------------------------------------
--- Ceiling lighting
--- Default to torches, but allow using mese post lights.
+-- Can alternatively use mese post lights in tunnels instead of torches. 
 local use_mese_lights = minetest.settings:get_bool("tm_use_mese_lights", false)
 local lighting = "default:torch"
 if use_mese_lights then
 	lighting = "default:mese_post_light"
 end
+-- End of configuration
 
--- Allow the use of other materials in desert biomes
-local add_desert_material = minetest.settings:get_bool("tm_add_desert_material", false)
 
--- Allow to replace water in air and a transparent coating tunnels
-local add_dry_tunnels = minetest.settings:get_bool("tm_add_dry_tunnels", true)
-
--- Train specific options affected by nontrain_tunnel user setting
--- I need two variables for each of these, so they can be restored when using formspec.
-
--- Increase tunnel height
-local ith_train = (tonumber(minetest.settings:get("tm_increase_tunnel_height") or 5))-5
-local ith
-
--- Add "arches" along the sides.
-local add_arches_train = minetest.settings:get_bool("tm_add_arches", true)
-local add_arches
-
--- Add gravel mound and additional base
-local add_embankment_train = minetest.settings:get_bool("tm_add_embankment", true)
-local add_embankment
-
--- Add markup for the railway advtrains
-local add_marking_train = minetest.settings:get_bool("tm_add_marking", true)
-local add_marking
-
--- Allow to replace the coating of tunnels on a specific coating
-local add_tough_tunnels_train = minetest.settings:get_bool("tm_add_tough_tunnels", true)
-local add_tough_tunnels
-
--- Allow wide paths in the woods. Greenpeace does not approve
-local add_wide_passage_train = minetest.settings:get_bool("tm_add_wide_passage", true)
-local add_wide_passage
-
--- Set actual values based on nontrain_tunnel default.
-if nontrain_tunnel_default then
+-- Post processing of config variables.
+---------------------------------------
+-- Set actual values based on train_mode default.
+if train_mode_default then
+	ith = ith_config
+	add_arches = add_arches_config
+	add_embankment = add_embankment_config
+	base_coating = base_coating_config
+	add_marking = add_marking_config
+	add_tough_tunnels = add_tough_tunnels_config
+	add_wide_passage = add_wide_passage_config
+else
 	ith = 0
 	add_arches = false
 	add_embankment = false
+	base_coating = false
 	add_marking = false
 	add_tough_tunnels = false
 	add_wide_passage = false
-else
-	ith = ith_train
-	add_arches = add_arches_train
-	add_embankment = add_embankment_train
-	add_marking = add_marking_train
-	add_tough_tunnels = add_tough_tunnels_train
-	add_wide_passage = add_wide_passage_train
 end
 
--- Materials
-
--- Walls, floor and additional base (outside the desert)
-local coating_not_desert = minetest.settings:get("tm_material_for_coating_not_desert") or "default:stone"
-
--- Walls, floor and additional base (in the desert)
-local coating_desert = minetest.settings:get("tm_material_for_coating_desert") or "default:desert_stone"
-
--- Walls in the water
-local glass_walls = minetest.settings:get("tm_material_for_glass_walls") or "default:glass"
-
--- Embankment for railway tracks
-local embankment = minetest.settings:get("tm_material_for_embankment") or "default:gravel"
-
--- Railway markings for advtrains (outside the desert)
-local marking_not_desert = minetest.settings:get("tm_material_for_marking_not_desert") or "default:stone_block"
-
--- Railway markings for advtrains (in the desert)
-local marking_desert = minetest.settings:get("tm_material_for_marking_desert") or "default:desert_stone_block"
-
-
--- Hard coded config options?
------------------------------
 -- Add ceiling lighting (I question whether not having lights is usable.)
 local add_lighting = true
 
 -- Distance between illumination (from 0 to 4)
-local lighting_search_radius = 1  -- torch
+local lighting_search_radius = 1  -- for torches
 if use_mese_lights then
 lighting_search_radius = 2  --mese_post_lights are brighter
 end
--- End of configuration
 
+
+-- Require "tunneling" priviledge to be able to user tunnelmaker tool.
 minetest.register_privilege("tunneling", {description = "Allow use of tunnelmaker tool"})
 
 -- Define top level variable to maintain per player state
@@ -146,7 +163,7 @@ local user_config = {}
 minetest.register_on_joinplayer(function(player)
 	local pname = player:get_player_name()
 	tunnelmaker[pname] = {updown = 0, lastdir = -1, lastpos = {x = 0, y = 0, z = 0}}
-	user_config[pname] = {remove_refs = false, nontrain_tunnels = nontrain_tunnel_default,
+	user_config[pname] = {remove_refs = 0, train_mode = train_mode_default,
 		continuous_updown = continuous_updown_default, lock_desert_mode = false,
 		use_desert_material = add_desert_material and minetest.get_biome_data and
 			string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert")}
@@ -372,6 +389,7 @@ local region3 = function(x, y, z, user, pointed_thing)
 	end
 end
 
+-- Reference regions
 local region4 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
@@ -386,16 +404,23 @@ local region4 = function(x, y, z, user, pointed_thing)
 			if add_embankment then
 				minetest.set_node(pos, {name = "tunnelmaker:embankment"})
 			else
-				if is_desert(user, pos) then
-					minetest.set_node(pos, {name = coating_desert})
-				else
-					minetest.set_node(pos, {name = coating_not_desert})
+				local group_flammable = false
+				if minetest.registered_nodes[name] then
+					group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
+				end
+				if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
+					if is_desert(user, pos) then
+						minetest.set_node(pos, {name = coating_desert})
+					else
+						minetest.set_node(pos, {name = coating_not_desert})
+					end
 				end
 			end
 		end
 	end
 end
 
+-- Basic non-reference floor region
 local region5 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
@@ -403,10 +428,16 @@ local region5 = function(x, y, z, user, pointed_thing)
 		if add_embankment then
 			minetest.set_node(pos, {name = "tunnelmaker:embankment"})
 		else
-			if is_desert(user, pos) then
-				minetest.set_node(pos, {name = coating_desert})
-			else
-				minetest.set_node(pos, {name = coating_not_desert})
+			local group_flammable = false
+			if minetest.registered_nodes[name] then
+				group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
+			end
+			if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
+				if is_desert(user, pos) then
+					minetest.set_node(pos, {name = coating_desert})
+				else
+					minetest.set_node(pos, {name = coating_not_desert})
+				end
 			end
 		end
 	end
@@ -729,10 +760,14 @@ for i,img in ipairs(images) do
 			local key_stats = player:get_player_control()
 			-- If sneak button held down when left-clicking tunnelmaker, brings up User Config formspec.
 			if key_stats.sneak then  -- Configuration formspec
+				local remove_refs_on = false
+				if user_config[pname].remove_refs > 0 then
+					remove_refs_on = true
+				end
 				local formspec = "size[5,4]"..
 					"label[0.25,0.25;Tunnelmaker User Options]"..
-					"checkbox[0.25,0.75;remove_refs;Remove reference nodes;"..tostring(user_config[pname].remove_refs).."]"..
-					"checkbox[0.25,1.25;nontrain_tunnels;Dig non-train tunnels;"..tostring(user_config[pname].nontrain_tunnels).."]"..
+					"checkbox[0.25,0.75;remove_refs;Remove reference nodes;"..tostring(remove_refs_on).."]"..
+					"checkbox[0.25,1.25;train_mode;Train mode;"..tostring(user_config[pname].train_mode).."]"..
 					"checkbox[0.25,1.75;continuous_updown;Continuous updown digging;"..tostring(user_config[pname].continuous_updown).."]"..
 					"button_exit[2,3.5;1,0.4;exit;Exit]"
 				local formspec_dm = ""
@@ -776,7 +811,7 @@ for i,img in ipairs(images) do
 					pointed_thing.under = vector.add(pointed_thing.under, {x=0, y=-1, z=0})
 					--pointed_thing.above = vector.add(pointed_thing.above, {x=0, y=-1, z=0})  -- don't currently use this
 				end
-				minetest.sound_play("default_dig_dig_immediate", {pos=pos, max_hear_distance = 8, gain = 1.0})
+				minetest.sound_play("default_dig_dig_immediate", {pos=pointed_thing.under, max_hear_distance = 8, gain = 1.0})
 				dig_tunnel(i-1, placer, pointed_thing)
 				if not user_config[pname].continuous_updown then
 					tunnelmaker[pname].updown = 0   -- reset to horizontal after one use
@@ -792,32 +827,55 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 	if formname ~= "tunnelmaker:form" then
 		return false
 	end
-	minetest.debug(minetest.serialize(fields))
+	-- minetest.debug(minetest.serialize(fields))
 	local pname = player:get_player_name()
-	if fields.remove_refs == "true" then user_config[pname].remove_refs = true
-	elseif fields.remove_refs == "false" then user_config[pname].remove_refs = false
-	elseif fields.nontrain_tunnels == "true" then
-		user_config[pname].nontrain_tunnels = true
+	if fields.remove_refs == "true" then
+		user_config[pname].remove_refs = remove_refs_enable_time
+		-- minetest.debug("setting remove_refs to "..tostring(remove_refs_enable_time))
+	elseif fields.remove_refs == "false" then
+		user_config[pname].remove_refs = 0
+	elseif fields.train_mode == "true" then
+		user_config[pname].train_mode = true
+		ith = ith_config
+		add_arches = add_arches_config
+		add_embankment = add_embankment_config
+		base_coating = base_coating_config
+		add_marking = add_marking_config
+		add_tough_tunnels = add_tough_tunnels_config
+		add_wide_passage = add_wide_passage_config
+	elseif fields.train_mode == "false" then
+		user_config[pname].train_mode = false
 		ith = 0
 		add_arches = false
 		add_embankment = false
+		base_coating = false
 		add_marking = false
 		add_tough_tunnels = false
 		add_wide_passage = false
-	elseif fields.nontrain_tunnels == "false" then
-		user_config[pname].nontrain_tunnels = false
-		ith = ith_train
-		add_arches = add_arches_train
-		add_embankment = add_embankment_train
-		add_marking = add_marking_train
-		add_tough_tunnels = add_tough_tunnels_train
-		add_wide_passage = add_wide_passage_train
 	elseif fields.continuous_updown == "true" then user_config[pname].continuous_updown = true
 	elseif fields.continuous_updown == "false" then user_config[pname].continuous_updown = false
 	elseif fields.lock_desert_mode == "false" then user_config[pname].lock_desert_mode = false
 	elseif fields.lock_desert_mode == "true" then user_config[pname].lock_desert_mode = true
 	end
 	return true
+end)
+
+-- Decrement remove_refs countdown timers.
+minetest.register_globalstep(function(dtime)
+	local players  = minetest.get_connected_players()
+	for _,player in ipairs(players) do
+		local pname = player:get_player_name()
+		local rr = user_config[pname].remove_refs
+		if rr > 0 then
+			rr = rr - dtime
+			if rr <= 0 then
+				user_config[pname].remove_refs = 0
+				-- minetest.debug("clearing remove_refs")
+			else
+				user_config[pname].remove_refs = rr
+			end
+		end
+	end
 end)
 
 -- Remove marking
@@ -870,7 +928,7 @@ end
 -- Replaces marking_not_desert and marking_desert nodes to "tunnelmaker:embankment".
 minetest.register_globalstep(function(dtime)
 	for _, player in ipairs(minetest.get_connected_players()) do
-		if user_config[player:get_player_name()].remove_refs then
+		if user_config[player:get_player_name()].remove_refs > 0 then
 			remove_marking.replace(player)
 		end
 	end
