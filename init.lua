@@ -729,11 +729,12 @@ for i,img in ipairs(images) do
 			local key_stats = player:get_player_control()
 			-- If sneak button held down when left-clicking tunnelmaker, brings up User Config formspec.
 			if key_stats.sneak then  -- Configuration formspec
-				local formspec = "size[4.5,3.5]"..
+				local formspec = "size[5,4]"..
 					"label[0.25,0.25;Tunnelmaker User Options]"..
 					"checkbox[0.25,0.75;remove_refs;Remove reference nodes;"..tostring(user_config[pname].remove_refs).."]"..
 					"checkbox[0.25,1.25;nontrain_tunnels;Dig non-train tunnels;"..tostring(user_config[pname].nontrain_tunnels).."]"..
-					"checkbox[0.25,1.75;continuous_updown;Continuous updown digging;"..tostring(user_config[pname].continuous_updown).."]"
+					"checkbox[0.25,1.75;continuous_updown;Continuous updown digging;"..tostring(user_config[pname].continuous_updown).."]"..
+					"button_exit[2,3.5;1,0.4;exit;Exit]"
 				local formspec_dm = ""
 				local dmat = ""
 				local use_desert_material = user_config[pname].use_desert_material
