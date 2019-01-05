@@ -6,6 +6,12 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-pre-4 - 2019-01-05
+-- Big reference marks redo.
+-- Reduce to a single type of reference mark.
+-- Save material to replace with in node at placement. This should resolve Lock_desert_mode issues.
+-- Replace voxel_manip with simpler find_node_near.
+
 -- Version 2.0-pre-3 - 2019-01-04
 -- Rearranged config options into different modes.
 -- Added base_coating config and updated regions 4 & 5 so they only fill in "holes" when not in Train mode.
@@ -66,8 +72,8 @@ local add_wide_passage_config = minetest.settings:get_bool("tm_add_wide_passage"
 local add_wide_passage
 
 -- Reference marks are added to help lay advtrains track.
-local add_marking_config = true
-local add_marking
+local add_reference_marks_config = true
+local add_reference_marks
 
 -- User has option to remove reference marks when passing over them. This option is turned off after
 -- 60 seconds by default, but time limit can be changed here.
@@ -79,9 +85,10 @@ local coating_not_desert = minetest.settings:get("tm_material_for_coating_not_de
 -- Material for train track embankment
 local embankment = minetest.settings:get("tm_material_for_embankment") or "default:gravel"
 
--- Material for reference marks for advtrains (outside of desert)
-local marking_not_desert = minetest.settings:get("tm_material_for_marking_not_desert") or "default:stone_block"
-
+-- Material for reference marks for advtrains
+-- This should be a fairly uncommon material with a distinctive look.
+-- If this is changed, old reference marks won't be able to be removed by tunnelmaker tool.
+local reference_marks = minetest.settings:get("tm_material_for_reference_marks") or "default:stone_block"
 
 -- Desert mode - Server defined. Needs Minetest version 5.0+.
 -------------------------------------------------------------
@@ -92,9 +99,6 @@ local add_desert_material = minetest.settings:get_bool("tm_add_desert_material",
 
 -- Material for coating for walls and floor in desert.
 local coating_desert = minetest.settings:get("tm_material_for_coating_desert") or "default:desert_stone"
-
--- Material for reference marks for advtrains in desert.
-local marking_desert = minetest.settings:get("tm_material_for_marking_desert") or "default:desert_stone_block"
 
 
 -- Water tunnel mode - Server defined.
@@ -129,7 +133,7 @@ if train_mode_default then
 	add_arches = add_arches_config
 	add_embankment = add_embankment_config
 	base_coating = base_coating_config
-	add_marking = add_marking_config
+	add_reference_marks = add_reference_marks_config
 	add_tough_tunnels = add_tough_tunnels_config
 	add_wide_passage = add_wide_passage_config
 else
@@ -137,7 +141,7 @@ else
 	add_arches = false
 	add_embankment = false
 	base_coating = false
-	add_marking = false
+	add_referemce_marks = false
 	add_tough_tunnels = false
 	add_wide_passage = false
 end
@@ -373,7 +377,7 @@ local region3 = function(x, y, z, user, pointed_thing)
 		if minetest.registered_nodes[name] then
 			group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
 		end
-		if not(string.match(name, "water") or name == "air" or name == glass_walls or (add_embankment and name == "tunnelmaker:embankment") or name == marking_not_desert or name == marking_desert or name == lighting or string.match(name, "dtrack")) and add_tough_tunnels then
+		if not(string.match(name, "water") or name == "air" or name == glass_walls or (add_embankment and name == "tunnelmaker:embankment") or name == reference_marks or name == lighting or string.match(name, "dtrack")) and add_tough_tunnels then
 			if not group_flammable then
 				if is_desert(user, pos) then
 					minetest.set_node(pos, {name = coating_desert})
@@ -394,28 +398,29 @@ local region4 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
 	if not string.match(name, "dtrack") then
-		if add_marking then
-			if is_desert(user, pos) then
-				minetest.set_node(pos, {name = marking_desert})
-			else
-				minetest.set_node(pos, {name = marking_not_desert})
-			end
+		-- Figure out what replacement material should be
+		local rep_mat
+		if add_embankment then
+			rep_mat = "tunnelmaker:embankment"
 		else
-			if add_embankment then
-				minetest.set_node(pos, {name = "tunnelmaker:embankment"})
-			else
-				local group_flammable = false
-				if minetest.registered_nodes[name] then
-					group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
-				end
-				if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
-					if is_desert(user, pos) then
-						minetest.set_node(pos, {name = coating_desert})
-					else
-						minetest.set_node(pos, {name = coating_not_desert})
-					end
+			local group_flammable = false
+			if minetest.registered_nodes[name] then
+				group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
+			end
+			if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
+				if is_desert(user, pos) then
+					rep_mat = coating_desert
+				else
+					rep_mat = coating_not_desert
 				end
 			end
+		end
+		if add_reference_marks then
+			minetest.set_node(pos, {name = reference_marks})
+			local meta = minetest.get_meta(pos)
+			meta:set_string("replace_with", rep_mat)
+		else
+			minetest.set_node(pos, {name = rep_mat})
 		end
 	end
 end
@@ -424,7 +429,7 @@ end
 local region5 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	if not(name == marking_not_desert or name == marking_desert or string.match(name, "dtrack")) then
+	if not(name == reference_marks or string.match(name, "dtrack")) then
 		if add_embankment then
 			minetest.set_node(pos, {name = "tunnelmaker:embankment"})
 		else
@@ -446,7 +451,7 @@ end
 local region6 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	if not(name == coating_not_desert or name == marking_not_desert or name == marking_desert or string.match(name, "dtrack")) and add_embankment then
+	if not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and add_embankment then
 		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
 		else
@@ -458,7 +463,7 @@ end
 local region7 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	if not(name == coating_not_desert or name == marking_not_desert or name == marking_desert or string.match(name, "dtrack")) then
+	if not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) then
 		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
 		else
@@ -474,7 +479,7 @@ local region8 = function(x, y, z, user, pointed_thing)
 	if minetest.registered_nodes[name] then
 		group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
 	end
-	if not(name == coating_not_desert or name == marking_not_desert or name == marking_desert or string.match(name, "dtrack")) and add_embankment and (add_wide_passage or not(add_wide_passage or group_flammable)) then
+	if not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and add_embankment and (add_wide_passage or not(add_wide_passage or group_flammable)) then
 		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
 		else
@@ -766,9 +771,9 @@ for i,img in ipairs(images) do
 				end
 				local formspec = "size[5,4]"..
 					"label[0.25,0.25;Tunnelmaker User Options]"..
-					"checkbox[0.25,0.75;remove_refs;Remove reference nodes;"..tostring(remove_refs_on).."]"..
+					"checkbox[0.25,0.75;continuous_updown;Continuous updown digging;"..tostring(user_config[pname].continuous_updown).."]"..
 					"checkbox[0.25,1.25;train_mode;Train mode;"..tostring(user_config[pname].train_mode).."]"..
-					"checkbox[0.25,1.75;continuous_updown;Continuous updown digging;"..tostring(user_config[pname].continuous_updown).."]"..
+					"checkbox[0.25,1.75;remove_refs;Remove reference nodes;"..tostring(remove_refs_on).."]"..
 					"button_exit[2,3.5;1,0.4;exit;Exit]"
 				local formspec_dm = ""
 				local dmat = ""
@@ -827,11 +832,9 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 	if formname ~= "tunnelmaker:form" then
 		return false
 	end
-	-- minetest.debug(minetest.serialize(fields))
 	local pname = player:get_player_name()
 	if fields.remove_refs == "true" then
 		user_config[pname].remove_refs = remove_refs_enable_time
-		-- minetest.debug("setting remove_refs to "..tostring(remove_refs_enable_time))
 	elseif fields.remove_refs == "false" then
 		user_config[pname].remove_refs = 0
 	elseif fields.train_mode == "true" then
@@ -840,7 +843,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		add_arches = add_arches_config
 		add_embankment = add_embankment_config
 		base_coating = base_coating_config
-		add_marking = add_marking_config
+		add_reference_marks = add_reference_marks_config
 		add_tough_tunnels = add_tough_tunnels_config
 		add_wide_passage = add_wide_passage_config
 	elseif fields.train_mode == "false" then
@@ -849,7 +852,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		add_arches = false
 		add_embankment = false
 		base_coating = false
-		add_marking = false
+		add_reference_marks = false
 		add_tough_tunnels = false
 		add_wide_passage = false
 	elseif fields.continuous_updown == "true" then user_config[pname].continuous_updown = true
@@ -870,7 +873,6 @@ minetest.register_globalstep(function(dtime)
 			rr = rr - dtime
 			if rr <= 0 then
 				user_config[pname].remove_refs = 0
-				-- minetest.debug("clearing remove_refs")
 			else
 				user_config[pname].remove_refs = rr
 			end
@@ -878,58 +880,24 @@ minetest.register_globalstep(function(dtime)
 	end
 end)
 
--- Remove marking
--- Is used for replaces marking_not_desert and marking_desert nodes to "tunnelmaker:embankment" under the railroad tracks advtrains.
--- Expose api
-local remove_marking = {}
-
-remove_marking.replace = function(player)
-	local player_pos = player:get_pos()
-	local count = 0
-
-	-- Gen pos1 and pos2
-	player_pos = vector.round(player_pos)
-	local pos1 = vector.subtract(player_pos, 1)
-	local pos2 = vector.add(player_pos, 1)
-
-	-- Read data into LVM
-	local vm = minetest.get_voxel_manip()
-	local emin, emax = vm:read_from_map(pos1, pos2)
-	local a = VoxelArea:new{
-		MinEdge = emin,
-		MaxEdge = emax
-	}
-	local data = vm:get_data()
-
-	-- Modify data
-	for z = pos1.z, pos2.z do
-		for y = pos1.y, pos2.y do
-			for x = pos1.x, pos2.x do
-				local vi = a:index(x, y, z)
-				if data[vi] == minetest.get_content_id(marking_not_desert) or data[vi] == minetest.get_content_id(marking_desert) then
-					if add_embankment_config then  -- independent of Tunnel mode
-						data[vi] = minetest.get_content_id("tunnelmaker:embankment")
-					else
-						if is_desert(player, {x=x, y=y, z=z}) then
-							data[vi] = minetest.get_content_id(coating_desert)
-						else
-							data[vi] = minetest.get_content_id(coating_not_desert)
-						end
-					end
-				end
-			end
+-- Remove reference marks
+local remove_refs = function(player)
+	local ppos = player:get_pos()
+	local refpos = minetest.find_node_near(ppos, 1, reference_marks)
+	if refpos then
+		local meta = minetest.get_meta(refpos)
+		local rep_mat = meta:get("replace_with")
+		if rep_mat and string.len(rep_mat) > 0 then
+			minetest.set_node(refpos, {name = rep_mat})
 		end
 	end
-	-- Write data
-	vm:set_data(data)
-	vm:write_to_map(true)
 end
 
--- Replaces marking_not_desert and marking_desert nodes to "tunnelmaker:embankment".
+-- Replaces reference marks with appropriate material.
 minetest.register_globalstep(function(dtime)
 	for _, player in ipairs(minetest.get_connected_players()) do
 		if user_config[player:get_player_name()].remove_refs > 0 then
-			remove_marking.replace(player)
+			remove_refs(player)
 		end
 	end
 end)
