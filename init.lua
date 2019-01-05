@@ -400,13 +400,13 @@ local region4 = function(x, y, z, user, pointed_thing)
 	if not string.match(name, "dtrack") then
 		-- Figure out what replacement material should be
 		local rep_mat
+		local group_flammable = false
+		if minetest.registered_nodes[name] then
+			group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
+		end
 		if add_embankment then
 			rep_mat = "tunnelmaker:embankment"
 		else
-			local group_flammable = false
-			if minetest.registered_nodes[name] then
-				group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
-			end
 			if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
 				if is_desert(user, pos) then
 					rep_mat = coating_desert
@@ -420,7 +420,9 @@ local region4 = function(x, y, z, user, pointed_thing)
 			local meta = minetest.get_meta(pos)
 			meta:set_string("replace_with", rep_mat)
 		else
-			minetest.set_node(pos, {name = rep_mat})
+			if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
+				minetest.set_node(pos, {name = rep_mat})
+			end
 		end
 	end
 end
