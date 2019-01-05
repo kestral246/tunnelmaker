@@ -907,7 +907,7 @@ remove_marking.replace = function(player)
 			for x = pos1.x, pos2.x do
 				local vi = a:index(x, y, z)
 				if data[vi] == minetest.get_content_id(marking_not_desert) or data[vi] == minetest.get_content_id(marking_desert) then
-					if add_embankment then
+					if add_embankment_config then  -- independent of Tunnel mode
 						data[vi] = minetest.get_content_id("tunnelmaker:embankment")
 					else
 						if is_desert(player, {x=x, y=y, z=z}) then
