@@ -6,6 +6,10 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-pre-5 - 2019-01-05
+-- Make add_embankment a user_config.
+-- Make add_lined_tunnels a user_config.
+
 -- Version 2.0-pre-4 - 2019-01-05
 -- Big reference marks redo.
 -- Reduce to a single type of reference mark.
@@ -56,12 +60,11 @@ local add_arches_config = minetest.settings:get_bool("tm_add_arches", true)
 local add_arches
 
 -- Train tunnels can be lined with a coating.
-local add_tough_tunnels_config = minetest.settings:get_bool("tm_add_tough_tunnels", true)
-local add_tough_tunnels
+local add_lined_tunnels_default = minetest.settings:get_bool("tm_add_lined_tunnels", true)
 
--- Train track can have an embankment (gravel mound and additional base).
-local add_embankment_config = minetest.settings:get_bool("tm_add_embankment", true)
-local add_embankment
+-- Train track can have a user selectable embankment (gravel mound and additional base).
+-- Define the default here. Not used in non-train mode.
+local add_embankment_default = minetest.settings:get_bool("tm_add_embankment_default", true)
 
 -- Train track without embankment have coating applied to ground.
 local base_coating_config = true
@@ -131,18 +134,14 @@ end
 if train_mode_default then
 	ith = ith_config
 	add_arches = add_arches_config
-	add_embankment = add_embankment_config
 	base_coating = base_coating_config
 	add_reference_marks = add_reference_marks_config
-	add_tough_tunnels = add_tough_tunnels_config
 	add_wide_passage = add_wide_passage_config
 else
 	ith = 0
 	add_arches = false
-	add_embankment = false
 	base_coating = false
 	add_referemce_marks = false
-	add_tough_tunnels = false
 	add_wide_passage = false
 end
 
@@ -170,7 +169,9 @@ minetest.register_on_joinplayer(function(player)
 	user_config[pname] = {remove_refs = 0, train_mode = train_mode_default,
 		continuous_updown = continuous_updown_default, lock_desert_mode = false,
 		use_desert_material = add_desert_material and minetest.get_biome_data and
-			string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert")}
+			string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert"),
+		add_embankment = add_embankment_default,
+		add_lined_tunnels = add_lined_tunnels_default}
 end)
 
 -- Delete player's state when player leaves
@@ -368,6 +369,7 @@ local region2 = function(x, y, z, user, pointed_thing)
 end
 
 local region3 = function(x, y, z, user, pointed_thing)
+	local pname = user:get_player_name()
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
 	if add_dry_tunnels and string.match(name, "water") then
@@ -377,7 +379,10 @@ local region3 = function(x, y, z, user, pointed_thing)
 		if minetest.registered_nodes[name] then
 			group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
 		end
-		if not(string.match(name, "water") or name == "air" or name == glass_walls or (add_embankment and name == "tunnelmaker:embankment") or name == reference_marks or name == lighting or string.match(name, "dtrack")) and add_tough_tunnels then
+		if not(string.match(name, "water") or name == "air" or name == glass_walls or
+			(user_config[pname].add_embankment and user_config[pname].train_mode and name == "tunnelmaker:embankment") or
+			name == reference_marks or name == lighting or string.match(name, "dtrack")) and
+			user_config[pname].add_lined_tunnels and user_config[pname].train_mode then
 			if not group_flammable then
 				if is_desert(user, pos) then
 					minetest.set_node(pos, {name = coating_desert})
@@ -395,6 +400,7 @@ end
 
 -- Reference regions
 local region4 = function(x, y, z, user, pointed_thing)
+	local pname = user:get_player_name()
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
 	if not string.match(name, "dtrack") then
@@ -404,7 +410,7 @@ local region4 = function(x, y, z, user, pointed_thing)
 		if minetest.registered_nodes[name] then
 			group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
 		end
-		if add_embankment then
+		if user_config[pname].add_embankment and user_config[pname].train_mode then
 			rep_mat = "tunnelmaker:embankment"
 		else
 			if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
@@ -429,10 +435,11 @@ end
 
 -- Basic non-reference floor region
 local region5 = function(x, y, z, user, pointed_thing)
+	local pname = user:get_player_name()
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
 	if not(name == reference_marks or string.match(name, "dtrack")) then
-		if add_embankment then
+		if user_config[pname].add_embankment and user_config[pname].train_mode then
 			minetest.set_node(pos, {name = "tunnelmaker:embankment"})
 		else
 			local group_flammable = false
@@ -451,9 +458,11 @@ local region5 = function(x, y, z, user, pointed_thing)
 end
 
 local region6 = function(x, y, z, user, pointed_thing)
+	local pname = user:get_player_name()
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	if not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and add_embankment then
+	if not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and
+		user_config[pname].add_embankment and user_config[pname].train_mode then
 		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
 		else
@@ -475,13 +484,15 @@ local region7 = function(x, y, z, user, pointed_thing)
 end
 
 local region8 = function(x, y, z, user, pointed_thing)
+	local pname = user:get_player_name()
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
 	local group_flammable = false
 	if minetest.registered_nodes[name] then
 		group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
 	end
-	if not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and add_embankment and (add_wide_passage or not(add_wide_passage or group_flammable)) then
+	if not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and
+		user_config[pname].add_embankment and user_config[pname].train_mode and (add_wide_passage or not(add_wide_passage or group_flammable)) then
 		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
 		else
@@ -771,12 +782,14 @@ for i,img in ipairs(images) do
 				if user_config[pname].remove_refs > 0 then
 					remove_refs_on = true
 				end
-				local formspec = "size[5,4]"..
+				local formspec = "size[5,5]"..
 					"label[0.25,0.25;Tunnelmaker User Options]"..
 					"checkbox[0.25,0.75;continuous_updown;Continuous updown digging;"..tostring(user_config[pname].continuous_updown).."]"..
 					"checkbox[0.25,1.25;train_mode;Train mode;"..tostring(user_config[pname].train_mode).."]"..
-					"checkbox[0.25,1.75;remove_refs;Remove reference nodes;"..tostring(remove_refs_on).."]"..
-					"button_exit[2,3.5;1,0.4;exit;Exit]"
+					"checkbox[0.5,1.75;add_embankment;Add embankment;"..tostring(user_config[pname].add_embankment).."]"..
+					"checkbox[0.5,2.25;add_lined_tunnels;Add lined tunnels;"..tostring(user_config[pname].add_lined_tunnels).."]"..
+					"checkbox[0.25,2.75;remove_refs;Remove reference nodes;"..tostring(remove_refs_on).."]"..
+					"button_exit[2,4.5;1,0.4;exit;Exit]"
 				local formspec_dm = ""
 				local dmat = ""
 				local use_desert_material = user_config[pname].use_desert_material
@@ -790,7 +803,7 @@ for i,img in ipairs(images) do
 					else
 						dmat = "Non-desert"
 					end
-					formspec_dm = "checkbox[0.25,2.25;lock_desert_mode;Lock desert mode to: "..dmat..";"..tostring(user_config[pname].lock_desert_mode).."]"
+					formspec_dm = "checkbox[0.25,3.25;lock_desert_mode;Lock desert mode to: "..dmat..";"..tostring(user_config[pname].lock_desert_mode).."]"
 				end
 				minetest.show_formspec(pname, "tunnelmaker:form", formspec..formspec_dm)
 			else  -- Dig single node, if pointing to one
@@ -843,20 +856,20 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].train_mode = true
 		ith = ith_config
 		add_arches = add_arches_config
-		add_embankment = add_embankment_config
 		base_coating = base_coating_config
 		add_reference_marks = add_reference_marks_config
-		add_tough_tunnels = add_tough_tunnels_config
 		add_wide_passage = add_wide_passage_config
 	elseif fields.train_mode == "false" then
 		user_config[pname].train_mode = false
 		ith = 0
 		add_arches = false
-		add_embankment = false
 		base_coating = false
 		add_reference_marks = false
-		add_tough_tunnels = false
 		add_wide_passage = false
+	elseif fields.add_embankment == "true" then user_config[pname].add_embankment = true
+	elseif fields.add_embankment == "false" then user_config[pname].add_embankment = false
+	elseif fields.add_lined_tunnels == "true" then user_config[pname].add_lined_tunnels = true
+	elseif fields.add_lined_tunnels == "false" then user_config[pname].add_lined_tunnels = false
 	elseif fields.continuous_updown == "true" then user_config[pname].continuous_updown = true
 	elseif fields.continuous_updown == "false" then user_config[pname].continuous_updown = false
 	elseif fields.lock_desert_mode == "false" then user_config[pname].lock_desert_mode = false
