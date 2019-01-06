@@ -784,10 +784,10 @@ for i,img in ipairs(images) do
 				end
 				local formspec = "size[5,5]"..
 					"label[0.25,0.25;Tunnelmaker User Options]"..
-					"checkbox[0.25,0.75;continuous_updown;Continuous updown digging;"..tostring(user_config[pname].continuous_updown).."]"..
+					"checkbox[0.25,0.75;continuous_updown;Continuous up/down digging;"..tostring(user_config[pname].continuous_updown).."]"..
 					"checkbox[0.25,1.25;train_mode;Train mode;"..tostring(user_config[pname].train_mode).."]"..
-					"checkbox[0.5,1.75;add_embankment;Add embankment;"..tostring(user_config[pname].add_embankment).."]"..
-					"checkbox[0.5,2.25;add_lined_tunnels;Add lined tunnels;"..tostring(user_config[pname].add_lined_tunnels).."]"..
+					"checkbox[0.5,1.75;add_lined_tunnels;Add lined tunnels;"..tostring(user_config[pname].add_lined_tunnels).."]"..
+					"checkbox[0.5,2.25;add_embankment;Add embankment under tracks;"..tostring(user_config[pname].add_embankment).."]"..
 					"checkbox[0.25,2.75;remove_refs;Remove reference nodes;"..tostring(remove_refs_on).."]"..
 					"button_exit[2,4.5;1,0.4;exit;Exit]"
 				local formspec_dm = ""
