@@ -6,6 +6,9 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-pre-6 - 2019-01-05
+-- Work on minetest.conf variable names.
+
 -- Version 2.0-pre-5 - 2019-01-05
 -- Make add_embankment a user_config.
 -- Make add_lined_tunnels a user_config.
@@ -40,97 +43,96 @@
 -- You should have received a copy of the CC0 Public Domain Dedication along with this
 -- software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>. 
 
--- This config section is a work in progress.
--- I prefixed all the minetest.conf names with tm_, but don't know if that's really necessary.
 
--- Without embankment, base floor is always filled and coated to stone/desert stone. Regions 4 and 5.
--- My version only filled, but didn't coat.
+-- User config defaults
+-----------------------
+-- Continuous updown digging, which allows digging up/down multiple times without resetting mode.
+local continuous_updown_default = minetest.settings:get_bool("continuous_updown_digging", false)
 
--- Train mode - User defined, but server defines look and feel.
----------------------------------------------------------------
--- Set default for train mode
-local train_mode_default = minetest.settings:get_bool("tm_train_mode_default", true)
-
--- Train tunnels can be taller than 5 - give value to increment (e.g. 2 gives 5 + 2 = 7).
-local ith_config = (tonumber(minetest.settings:get("tm_increase_tunnel_height") or 5))-5
-local ith
-
--- Train tunnels can have "arches" along the sides.
-local add_arches_config = minetest.settings:get_bool("tm_add_arches", true)
-local add_arches
+-- Train mode enables various options appropriate for trains from the advtrains mod.
+local train_mode_default = minetest.settings:get_bool("train_mode", true)
 
 -- Train tunnels can be lined with a coating.
-local add_lined_tunnels_default = minetest.settings:get_bool("tm_add_lined_tunnels", true)
+local add_lined_tunnels_default = minetest.settings:get_bool("add_lined_tunnels", true)
 
 -- Train track can have a user selectable embankment (gravel mound and additional base).
--- Define the default here. Not used in non-train mode.
-local add_embankment_default = minetest.settings:get_bool("tm_add_embankment_default", true)
+local add_embankment_default = minetest.settings:get_bool("add_track_embankment", true)
 
--- Train track without embankment have coating applied to ground.
-local base_coating_config = true
-local base_coating
+
+-- Configuration variables
+--------------------------
+-- Train tunnels can be taller than 5.
+local tunnel_height = (tonumber(minetest.settings:get("tunnel_height") or 5))
+
+-- Train tunnels can have "arches" along the sides.
+local add_arches_config = minetest.settings:get_bool("add_tunnel_arches", true)
 
 -- Train track can have wide paths in the woods. Greenpeace does not approve.
-local add_wide_passage_config = minetest.settings:get_bool("tm_add_wide_passage", true)
-local add_wide_passage
-
--- Reference marks are added to help lay advtrains track.
-local add_reference_marks_config = true
-local add_reference_marks
-
--- User has option to remove reference marks when passing over them. This option is turned off after
--- 60 seconds by default, but time limit can be changed here.
-local remove_refs_enable_time = tonumber(minetest.settings:get("tm_remove_refs_enable_time") or 60)
+local add_wide_passage_config = minetest.settings:get_bool("add_track_wide_passage", true)
 
 -- Material for coating for walls and floor (outside of desert)
-local coating_not_desert = minetest.settings:get("tm_material_for_coating_not_desert") or "default:stone"
+local coating_not_desert = minetest.settings:get("material_for_tunnels") or "default:stone"
 
 -- Material for train track embankment
-local embankment = minetest.settings:get("tm_material_for_embankment") or "default:gravel"
+local embankment = minetest.settings:get("material_for_track_embankment") or "default:gravel"
 
--- Material for reference marks for advtrains
+-- Material for reference marks to help laying advtrains track.
 -- This should be a fairly uncommon material with a distinctive look.
 -- If this is changed, old reference marks won't be able to be removed by tunnelmaker tool.
-local reference_marks = minetest.settings:get("tm_material_for_reference_marks") or "default:stone_block"
+local reference_marks = minetest.settings:get("material_for_reference_marks") or "default:stone_block"
 
--- Desert mode - Server defined. Needs Minetest version 5.0+.
--------------------------------------------------------------
--- Enable desert mode - can use different materials when in the desert.
+-- Time that reference marks are removed when this command enabled by the user. 
+local remove_refs_enable_time = tonumber(minetest.settings:get("remove_reference_marks_timeout") or 60)
+
+-- Enable desert mode - can use different materials when in the desert. Requires Minetest 5.0+.
 -- When desert mode is enabled, user gets additional option to Lock desert mode to current state
 -- of being in desert or not. Useful to define materials used when in desert transition regions.
-local add_desert_material = minetest.settings:get_bool("tm_add_desert_material", false)
+local add_desert_material = minetest.settings:get_bool("add_desert_material", false)
 
 -- Material for coating for walls and floor in desert.
-local coating_desert = minetest.settings:get("tm_material_for_coating_desert") or "default:desert_stone"
+local coating_desert = minetest.settings:get("material_for_desert_tunnels") or "default:desert_stone"
 
-
--- Water tunnel mode - Server defined.
---------------------------------------
 -- Allow to replace water in air and a transparent coating tunnels
-local add_dry_tunnels = minetest.settings:get_bool("tm_add_dry_tunnels", true)
+local add_dry_tunnels = minetest.settings:get_bool("add_dry_tunnels", true)
 
 -- Material for coating for walls in the water.
-local glass_walls = minetest.settings:get("tm_material_for_glass_walls") or "default:glass"
-
-
--- Other options
----------------
--- User can set whether to use continuous updown digging, which allows digging up/down multiple
--- times without resetting mode. Set default for this here.
-local continuous_updown_default = minetest.settings:get_bool("tm_continuous_updown_default", false)
+local glass_walls = minetest.settings:get("material_for_dry_tunnels") or "default:glass"
 
 -- Can alternatively use mese post lights in tunnels instead of torches. 
-local use_mese_lights = minetest.settings:get_bool("tm_use_mese_lights", false)
-local lighting = "default:torch"
-if use_mese_lights then
-	lighting = "default:mese_post_light"
-end
+local use_mese_lights = minetest.settings:get_bool("mese_tunnel_lights", false)
 -- End of configuration
 
 
--- Post processing of config variables.
----------------------------------------
+-- Process config variables
+---------------------------
+-- Increase tunnel height, check tunnel height limits.
+if tunnel_height < 5 then
+	tunnel_height = 5
+elseif tunnel_height > 9 then
+	tunnel_height = 9
+end
+local ith_config = tunnel_height - 5
+
+-- Train track without embankment have coating applied to ground.
+local base_coating_config = true
+
+-- Reference marks are added to help lay advtrains track.
+local add_reference_marks_config = true
+
+-- Check remove refs time limit.
+if remove_refs_enable_time < 10 then
+	remove_refs_enable_time = 10
+elseif remove_refs_enable_time > 180 then
+	remove_refs_enable_time = 180
+end
+
 -- Set actual values based on train_mode default.
+local ith
+local add_arches
+local base_coating
+local add_reference_marks
+local add_wide_passage
+
 if train_mode_default then
 	ith = ith_config
 	add_arches = add_arches_config
@@ -145,8 +147,13 @@ else
 	add_wide_passage = false
 end
 
--- Add ceiling lighting (I question whether not having lights is usable.)
+-- Torches are placed in tunnel ceilings to light the way.
 local add_lighting = true
+
+local lighting = "default:torch"
+if use_mese_lights then
+	lighting = "default:mese_post_light"
+end
 
 -- Distance between illumination (from 0 to 4)
 local lighting_search_radius = 1  -- for torches
