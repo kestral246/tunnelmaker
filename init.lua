@@ -6,6 +6,10 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-pre-7 - 2019-01-06
+-- Add back support for area protection.
+-- Remove custom embankment node and use param2 value instead.
+
 -- Version 2.0-pre-6 - 2019-01-05
 -- Work on minetest.conf variable names.
 
@@ -269,48 +273,6 @@ local images = {
 		"tunnelmaker_28.png", "tunnelmaker_29.png", "tunnelmaker_30.png", "tunnelmaker_31.png",
 }
 
--- Creating a tunnelmaker:embankment from the embankment
-local deepcopy
-local register
-
-function deepcopy(orig)
-		local orig_type = type(orig)
-		local copy
-		if orig_type == 'table' then
-				copy = {}
-				for orig_key, orig_value in pairs(orig) do
-						copy[deepcopy(orig_key)] = deepcopy(orig_value)
-				end
-				-- We don't copy metatable!
-		else
-				copy = orig
-		end
-		return copy
-end
-
-function register(original)
-		minetest.log("Copying "..original)
-		local orig_node = minetest.registered_nodes[original]
-		if orig_node == nil then
-				minetest.log("error", "Unknown original node")
-				return
-		end
-		local name_parts = string.split(original, ":")
-		local name = name_parts[2]
-		local target_name = "tunnelmaker:embankment"
-		local copy = deepcopy(orig_node)
-
-		if orig_node.drop ~= nil then
-			copy.drop = deepcopy(orig_node.drop)
-		else
-			copy.drop = original
-		end
-		minetest.log("Registering "..target_name)
-		minetest.register_node(target_name, copy)
-end
-
-register(embankment)
-
 -- Tests whether position is in desert-type biomes, such as desert, sandstone_desert, cold_desert, etc
 -- Always just returns false if can't determine biome (i.e., using 0.4.x version)
 local is_desert = function(user, pos)
@@ -340,38 +302,46 @@ end
 local region0 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	if not(name == lighting or string.match(name, "dtrack")) and (add_dry_tunnels or not(add_dry_tunnels or string.match(name, "water"))) then
-		minetest.set_node(pos, {name = "air"})
+	if not minetest.is_protected(pos, user) then
+		if not(name == lighting or string.match(name, "dtrack")) and (add_dry_tunnels or not(add_dry_tunnels or string.match(name, "water"))) then
+			minetest.set_node(pos, {name = "air"})
+		end
 	end
 end
 
 local region1 = function(spacing, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=0, y=5+ith, z=0})
 	local ceiling = minetest.get_node(vector.add(pos, {x=0, y=1, z=0})).name
-	if add_lighting and (ceiling == coating_not_desert or ceiling == coating_desert or ceiling == glass_walls) and
-			minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) and
-			minetest.find_node_near(pos, spacing, {name = lighting}) == nil then
-		minetest.set_node(pos, {name = lighting})
-	end
-	-- roof height can now be 5 or six so try again one higher
-	pos = vector.add(pointed_thing.under, {x=0, y=6+ith, z=0})
-	ceiling = minetest.get_node(vector.add(pos, {x=0, y=1, z=0})).name
-	if add_lighting and (ceiling == coating_not_desert or ceiling == coating_desert or ceiling == glass_walls) and
-			minetest.get_node(pos).name == "air" and not minetest.is_protected(pos, user) and
-			minetest.find_node_near(pos, spacing, {name = lighting}) == nil then
-		minetest.set_node(pos, {name = lighting})
+	if not minetest.is_protected(pos, user) then
+		if add_lighting and (ceiling == coating_not_desert or ceiling == coating_desert or ceiling == glass_walls) and
+				minetest.get_node(pos).name == "air" and
+				minetest.find_node_near(pos, spacing, {name = lighting}) == nil then
+			minetest.set_node(pos, {name = lighting})
+		end
+		-- roof height can now be 5 or six so try again one higher
+		pos = vector.add(pointed_thing.under, {x=0, y=6+ith, z=0})
+		ceiling = minetest.get_node(vector.add(pos, {x=0, y=1, z=0})).name
+		if add_lighting and (ceiling == coating_not_desert or ceiling == coating_desert or ceiling == glass_walls) and
+				minetest.get_node(pos).name == "air" and
+				minetest.find_node_near(pos, spacing, {name = lighting}) == nil then
+			minetest.set_node(pos, {name = lighting})
+		end
 	end
 end
 
 local region2 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	local group_flammable = false
-	if minetest.registered_nodes[name] then
-		group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
-	end
-	if not(name == lighting or  string.match(name, "dtrack")) and (add_dry_tunnels or not(add_dry_tunnels or string.match(name, "water"))) and (add_wide_passage or not(add_wide_passage or group_flammable)) then
-		minetest.set_node(pos, {name = "air"})
+	if not minetest.is_protected(pos, user) then
+		local group_flammable = false
+		if minetest.registered_nodes[name] then
+			group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
+		end
+		if not(name == lighting or  string.match(name, "dtrack")) and
+				(add_dry_tunnels or not(add_dry_tunnels or string.match(name, "water"))) and
+				(add_wide_passage or not(add_wide_passage or group_flammable)) then
+			minetest.set_node(pos, {name = "air"})
+		end
 	end
 end
 
@@ -379,26 +349,29 @@ local region3 = function(x, y, z, user, pointed_thing)
 	local pname = user:get_player_name()
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	if add_dry_tunnels and string.match(name, "water") then
-			minetest.set_node(pos, {name = glass_walls})
-	else
-		local group_flammable = false
-		if minetest.registered_nodes[name] then
-			group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
-		end
-		if not(string.match(name, "water") or name == "air" or name == glass_walls or
-			(user_config[pname].add_embankment and user_config[pname].train_mode and name == "tunnelmaker:embankment") or
-			name == reference_marks or name == lighting or string.match(name, "dtrack")) and
-			user_config[pname].add_lined_tunnels and user_config[pname].train_mode then
-			if not group_flammable then
-				if is_desert(user, pos) then
-					minetest.set_node(pos, {name = coating_desert})
+	local param2 = minetest.get_node(pos).param2
+	if not minetest.is_protected(pos, user) then
+		if add_dry_tunnels and string.match(name, "water") then
+				minetest.set_node(pos, {name = glass_walls})
+		else
+			local group_flammable = false
+			if minetest.registered_nodes[name] then
+				group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
+			end
+			if not(string.match(name, "water") or name == "air" or name == glass_walls or
+				(user_config[pname].add_embankment and user_config[pname].train_mode and name == embankment and param2 == 42) or
+				name == reference_marks or name == lighting or string.match(name, "dtrack")) and
+				user_config[pname].add_lined_tunnels and user_config[pname].train_mode then
+				if not group_flammable then
+					if is_desert(user, pos) then
+						minetest.set_node(pos, {name = coating_desert})
+					else
+						minetest.set_node(pos, {name = coating_not_desert})
+					end
 				else
-					minetest.set_node(pos, {name = coating_not_desert})
-				end
-			else
-				if add_wide_passage then
-					minetest.set_node(pos, {name = "air"})
+					if add_wide_passage then
+						minetest.set_node(pos, {name = "air"})
+					end
 				end
 			end
 		end
@@ -410,7 +383,7 @@ local region4 = function(x, y, z, user, pointed_thing)
 	local pname = user:get_player_name()
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	if not string.match(name, "dtrack") then
+	if not minetest.is_protected(pos, user) and not string.match(name, "dtrack") then
 		-- Figure out what replacement material should be
 		local rep_mat
 		local group_flammable = false
@@ -418,7 +391,7 @@ local region4 = function(x, y, z, user, pointed_thing)
 			group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
 		end
 		if user_config[pname].add_embankment and user_config[pname].train_mode then
-			rep_mat = "tunnelmaker:embankment"
+			rep_mat = embankment
 		else
 			if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
 				if is_desert(user, pos) then
@@ -434,7 +407,11 @@ local region4 = function(x, y, z, user, pointed_thing)
 			meta:set_string("replace_with", rep_mat)
 		else
 			if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
-				minetest.set_node(pos, {name = rep_mat})
+				if rep_mat == embankment then
+					minetest.set_node(pos, {name = rep_mat, param2 = 42})
+				else
+					minetest.set_node(pos, {name = rep_mat})
+				end
 			end
 		end
 	end
@@ -445,9 +422,9 @@ local region5 = function(x, y, z, user, pointed_thing)
 	local pname = user:get_player_name()
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	if not(name == reference_marks or string.match(name, "dtrack")) then
+	if not minetest.is_protected(pos, user) and not(name == reference_marks or string.match(name, "dtrack")) then
 		if user_config[pname].add_embankment and user_config[pname].train_mode then
-			minetest.set_node(pos, {name = "tunnelmaker:embankment"})
+			minetest.set_node(pos, {name = embankment, param2 = 42})
 		else
 			local group_flammable = false
 			if minetest.registered_nodes[name] then
@@ -468,7 +445,7 @@ local region6 = function(x, y, z, user, pointed_thing)
 	local pname = user:get_player_name()
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	if not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and
+	if not minetest.is_protected(pos, user) and not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and
 		user_config[pname].add_embankment and user_config[pname].train_mode then
 		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
@@ -481,7 +458,7 @@ end
 local region7 = function(x, y, z, user, pointed_thing)
 	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 	local name = minetest.get_node(pos).name
-	if not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) then
+	if not minetest.is_protected(pos, user) and not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) then
 		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
 		else
@@ -498,7 +475,7 @@ local region8 = function(x, y, z, user, pointed_thing)
 	if minetest.registered_nodes[name] then
 		group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
 	end
-	if not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and
+	if not minetest.is_protected(pos, user) and not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and
 		user_config[pname].add_embankment and user_config[pname].train_mode and (add_wide_passage or not(add_wide_passage or group_flammable)) then
 		if is_desert(user, pos) then
 			minetest.set_node(pos, {name = coating_desert})
@@ -907,10 +884,12 @@ local remove_refs = function(player)
 	local ppos = player:get_pos()
 	local refpos = minetest.find_node_near(ppos, 1, reference_marks)
 	if refpos then
-		local meta = minetest.get_meta(refpos)
-		local rep_mat = meta:get("replace_with")
-		if rep_mat and string.len(rep_mat) > 0 then
-			minetest.set_node(refpos, {name = rep_mat})
+		if not minetest.is_protected(refpos, player) then
+			local meta = minetest.get_meta(refpos)
+			local rep_mat = meta:get("replace_with")
+			if rep_mat and string.len(rep_mat) > 0 then
+				minetest.set_node(refpos, {name = rep_mat, param2 = 42})
+			end
 		end
 	end
 end
