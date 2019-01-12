@@ -6,6 +6,11 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-pre-8 - 2019-01-12
+-- Add back option to select type of light.
+-- Still automatically adjust spacing based on light's brightness.
+-- Need to stop removing other lights, but that will have to wait for my big code rework.
+
 -- Version 2.0-pre-7 - 2019-01-06
 -- Add back support for area protection.
 -- Remove custom embankment node and use param2 value instead.
@@ -103,7 +108,7 @@ local add_dry_tunnels = minetest.settings:get_bool("add_dry_tunnels", true)
 local glass_walls = minetest.settings:get("material_for_dry_tunnels") or "default:glass"
 
 -- Can alternatively use mese post lights in tunnels instead of torches. 
-local use_mese_lights = minetest.settings:get_bool("mese_tunnel_lights", false)
+local lighting = minetest.settings:get("tunnel_lights") or "default:torch"
 -- End of configuration
 
 
@@ -151,20 +156,11 @@ else
 	add_wide_passage = false
 end
 
--- Torches are placed in tunnel ceilings to light the way.
+-- Lights are placed in tunnel ceilings to light the way.
 local add_lighting = true
 
-local lighting = "default:torch"
-if use_mese_lights then
-	lighting = "default:mese_post_light"
-end
-
--- Distance between illumination (from 0 to 4)
-local lighting_search_radius = 1  -- for torches
-if use_mese_lights then
-lighting_search_radius = 2  --mese_post_lights are brighter
-end
-
+-- Default light spacing (appropriate for torches).
+local lighting_search_radius = 1
 
 -- Require "tunneling" priviledge to be able to user tunnelmaker tool.
 minetest.register_privilege("tunneling", {description = "Allow use of tunnelmaker tool"})
@@ -172,6 +168,13 @@ minetest.register_privilege("tunneling", {description = "Allow use of tunnelmake
 -- Define top level variable to maintain per player state
 local tunnelmaker = {}
 local user_config = {}
+
+-- Adjust light spacing if using brighter lights.
+minetest.register_on_mods_loaded(function()
+	if minetest.registered_nodes[lighting] and minetest.registered_nodes[lighting].light_source > 13 then
+		lighting_search_radius = 2
+	end
+end)
 
 -- Initialize player's state when player joins
 minetest.register_on_joinplayer(function(player)
