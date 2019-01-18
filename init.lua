@@ -6,19 +6,14 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-pre-9 - 2019-01-17
+-- Version 2.0-pre-10 - 2019-01-18
 
 -- Controls for operation
 -------------------------
--- Left-click: remove one node
--- Shift left-click: bring up user config menu
--- Right-click: dig tunnel based on direction pressed
--- Shift right-click: cycle through vertical directions
-
--- Improvements compared to Version 1.0
----------------------------------------
--- TBD
-
+-- Left-click: dig one node.
+-- Shift left-click: bring up user config menu.
+-- Right-click: dig tunnel based on direction player pointing.
+-- Shift right-click: cycle through vertical digging directions.
 
 -- Icon display based on compassgps 2.7 and compass 0.5
 
@@ -55,6 +50,7 @@ local add_arches_config = minetest.settings:get_bool("add_tunnel_arches", true)
 
 -- Material for coating for walls and floor (outside of desert)
 local coating_not_desert = minetest.settings:get("material_for_tunnels") or "default:stone"
+local slabs_not_desert = minetest.settings:get("material_for_slabs") or "stairs:slab_stone"
 
 -- Material for train track embankment
 local embankment = minetest.settings:get("material_for_track_embankment") or "default:gravel"
@@ -65,7 +61,7 @@ local embankment = minetest.settings:get("material_for_track_embankment") or "de
 local reference_marks = minetest.settings:get("material_for_reference_marks") or "default:stone_block"
 
 -- Time that reference marks are removed when this command enabled by the user. 
-local remove_refs_enable_time = tonumber(minetest.settings:get("remove_reference_marks_timeout") or 60)
+local remove_refs_enable_time = tonumber(minetest.settings:get("remove_reference_marks_timeout") or 120)
 
 -- Enable desert mode - can use different materials when in the desert. Requires Minetest 5.0+.
 -- When desert mode is enabled, user gets additional option to Lock desert mode to current state
@@ -74,6 +70,7 @@ local add_desert_material = minetest.settings:get_bool("add_desert_material", fa
 
 -- Material for coating for walls and floor in desert.
 local coating_desert = minetest.settings:get("material_for_desert_tunnels") or "default:desert_stone"
+local slabs_desert = minetest.settings:get("material_for_desert_slabs") or "stairs:slab_desert_stone"
 
 -- Allow to replace water in air and a transparent coating tunnels
 local add_dry_tunnels = minetest.settings:get_bool("add_dry_tunnels", true)
@@ -98,8 +95,8 @@ end
 -- Check remove refs time limit. Also used for clear tree cover time limit.
 if remove_refs_enable_time < 10 then
 	remove_refs_enable_time = 10
-elseif remove_refs_enable_time > 180 then
-	remove_refs_enable_time = 180
+elseif remove_refs_enable_time > 300 then
+	remove_refs_enable_time = 300  -- 5 minute max.
 end
 
 -- Max height to clear trees and other brush, when clear tree cover enabled.
@@ -428,9 +425,9 @@ region = {
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps then
 					if is_desert(user, pos) then
-						minetest.set_node(pos, {name = "stairs:slab_desert_stone", param2 = 2})
+						minetest.set_node(pos, {name = slabs_desert, param2 = 2})
 					else
-						minetest.set_node(pos, {name = "stairs:slab_stone", param2 = 2})
+						minetest.set_node(pos, {name = slabs_not_desert, param2 = 2})
 					end
 				else
 					region[1](x, y, z, user, pointed_thing)
@@ -444,8 +441,8 @@ region = {
 				local pname = user:get_player_name()
 				local node = minetest.get_node(pos)
 				if not user_config[pname].add_bike_ramps or (user_config[pname].add_bike_ramps and
-						not (node.name == "stairs:slab_stone" and node.param2 == 2) or
-						(node.name == "stairs:slab_desert_stone" and node.param2 == 2)) then
+						not (node.name == slabs_not_desert and node.param2 == 2) or
+						(node.name == slabs_desert and node.param2 == 2)) then
 					region[1](x, y, z, user, pointed_thing)
 				end
 			end
@@ -506,7 +503,7 @@ region = {
 				--local name1 = minetest.get_node(pos1).name
 				if name == "air" then
 					local ceiling = minetest.get_node(pos1).name
-					if add_lighting and (ceiling == coating_not_desert or ceiling == coating_desert or ceiling == glass_walls) and
+					if add_lighting and (ceiling == coating_not_desert or ceiling == "default:stone" or ceiling == coating_desert or ceiling == "default:desert_stone" or ceiling == glass_walls) and
 							minetest.find_node_near(pos, lighting_search_radius, {name = lighting}) == nil then
 						minetest.set_node(pos, {name = lighting})
 					end
@@ -705,12 +702,12 @@ for i,img in ipairs(images) do
 				end
 				local formspec = "size[5,6]"..
 					"label[0.25,0.25;Tunnelmaker User Options]"..
-					"dropdown[0.25,1.00;3;digging_mode;General purpose mode,Train outdoor mode,Train tunnel/bridge mode,Bike path mode;"..tostring(user_config[pname].digging_mode).."]"..
+					"dropdown[0.25,1.00;4;digging_mode;General purpose mode,Ground level train mode,Tunnel/bridge train mode,Bike path mode;"..tostring(user_config[pname].digging_mode).."]"..
 					"checkbox[0.25,1.75;continuous_updown;Continuous up/down digging;"..tostring(user_config[pname].continuous_updown).."]"..
 					"checkbox[0.25,2.25;clear_trees;Clear tree cover above*;"..tostring(clear_trees_on).."]"..
 					"checkbox[0.25,2.75;remove_refs;Remove reference nodes*;"..tostring(remove_refs_on).."]"..
 					"button_exit[2,4.50;1,0.4;exit;Exit]"..
-					"label[0.25,5.25;"..minetest.colorize("#888","* Automatically disabled after 1 min.").."]"
+					"label[0.25,5.25;"..minetest.colorize("#888","* Automatically disabled after 2 mins.").."]"
 				local formspec_dm = ""
 				local dmat = ""
 				local use_desert_material = user_config[pname].use_desert_material
@@ -794,7 +791,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].add_floors = false
 		user_config[pname].add_wide_floors = false
 		user_config[pname].add_bike_ramps = false
-	elseif fields.digging_mode == "Train outdoor mode" then
+	elseif fields.digging_mode == "Ground level train mode" then
 		user_config[pname].digging_mode = 2
 		user_config[pname].height = tunnel_height
 		user_config[pname].add_arches = true
@@ -803,7 +800,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].add_floors = true
 		user_config[pname].add_wide_floors = false
 		user_config[pname].add_bike_ramps = false
-	elseif fields.digging_mode == "Train tunnel/bridge mode" then
+	elseif fields.digging_mode == "Tunnel/bridge train mode" then
 		user_config[pname].digging_mode = 3
 		user_config[pname].height = tunnel_height
 		user_config[pname].add_arches = true
