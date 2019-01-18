@@ -6,45 +6,22 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-pre-8 - 2019-01-12
--- Add back option to select type of light.
--- Still automatically adjust spacing based on light's brightness.
--- Need to stop removing other lights, but that will have to wait for my big code rework.
+-- Version 2.0-pre-9 - 2019-01-17
 
--- Version 2.0-pre-7 - 2019-01-06
--- Add back support for area protection.
--- Remove custom embankment node and use param2 value instead.
+-- Controls for operation
+-------------------------
+-- Left-click: remove one node
+-- Shift left-click: bring up user config menu
+-- Right-click: dig tunnel based on direction pressed
+-- Shift right-click: cycle through vertical directions
 
--- Version 2.0-pre-6 - 2019-01-05
--- Work on minetest.conf variable names.
+-- Improvements compared to Version 1.0
+---------------------------------------
+-- TBD
 
--- Version 2.0-pre-5 - 2019-01-05
--- Make add_embankment a user_config.
--- Make add_lined_tunnels a user_config.
 
--- Version 2.0-pre-4 - 2019-01-05
--- Big reference marks redo.
--- Reduce to a single type of reference mark.
--- Save material to replace with in node at placement. This should resolve Lock_desert_mode issues.
--- Replace voxel_manip with simpler find_node_near.
+-- Icon display based on compassgps 2.7 and compass 0.5
 
--- Version 2.0-pre-3 - 2019-01-04
--- Rearranged config options into different modes.
--- Added base_coating config and updated regions 4 & 5 so they only fill in "holes" when not in Train mode.
--- Added timer to disable Remove references after 60 seconds (configurable).
-
--- Version 2.0-pre-2 - 2019-01-03
--- Added Lock Desert Mode user config, but only when is_desert works.
--- Trying to deal better with transition regions to and from desert.
--- Stone coating will now change to desert stone, and vice versa.
--- How about tm_ for config prefix?
-
--- Version 2.0-pre-1 - 2019-01-02
--- Updating configs (wip), simplified digging patterns, added shift+left-click user config formspec.
-
--- based on compassgps 2.7 and compass 0.5
-
--- Licence TBD
 -- To the extent possible under law, the author(s) have dedicated all copyright and related
 -- and neighboring rights to this software to the public domain worldwide. This software is
 -- distributed without any warranty.
@@ -62,7 +39,7 @@ local continuous_updown_default = minetest.settings:get_bool("continuous_updown_
 local train_mode_default = minetest.settings:get_bool("train_mode", true)
 
 -- Train tunnels can be lined with a coating.
-local add_lined_tunnels_default = minetest.settings:get_bool("add_lined_tunnels", true)
+local add_lined_tunnels_default = minetest.settings:get_bool("add_lined_tunnels", false)
 
 -- Train track can have a user selectable embankment (gravel mound and additional base).
 local add_embankment_default = minetest.settings:get_bool("add_track_embankment", true)
@@ -75,9 +52,6 @@ local tunnel_height = (tonumber(minetest.settings:get("tunnel_height") or 5))
 
 -- Train tunnels can have "arches" along the sides.
 local add_arches_config = minetest.settings:get_bool("add_tunnel_arches", true)
-
--- Train track can have wide paths in the woods. Greenpeace does not approve.
-local add_wide_passage_config = minetest.settings:get_bool("add_track_wide_passage", true)
 
 -- Material for coating for walls and floor (outside of desert)
 local coating_not_desert = minetest.settings:get("material_for_tunnels") or "default:stone"
@@ -107,7 +81,7 @@ local add_dry_tunnels = minetest.settings:get_bool("add_dry_tunnels", true)
 -- Material for coating for walls in the water.
 local glass_walls = minetest.settings:get("material_for_dry_tunnels") or "default:glass"
 
--- Can alternatively use mese post lights in tunnels instead of torches. 
+-- Can use other lights in tunnels instead of torches.
 local lighting = minetest.settings:get("tunnel_lights") or "default:torch"
 -- End of configuration
 
@@ -120,41 +94,16 @@ if tunnel_height < 5 then
 elseif tunnel_height > 9 then
 	tunnel_height = 9
 end
-local ith_config = tunnel_height - 5
 
--- Train track without embankment have coating applied to ground.
-local base_coating_config = true
-
--- Reference marks are added to help lay advtrains track.
-local add_reference_marks_config = true
-
--- Check remove refs time limit.
+-- Check remove refs time limit. Also used for clear tree cover time limit.
 if remove_refs_enable_time < 10 then
 	remove_refs_enable_time = 10
 elseif remove_refs_enable_time > 180 then
 	remove_refs_enable_time = 180
 end
 
--- Set actual values based on train_mode default.
-local ith
-local add_arches
-local base_coating
-local add_reference_marks
-local add_wide_passage
-
-if train_mode_default then
-	ith = ith_config
-	add_arches = add_arches_config
-	base_coating = base_coating_config
-	add_reference_marks = add_reference_marks_config
-	add_wide_passage = add_wide_passage_config
-else
-	ith = 0
-	add_arches = false
-	base_coating = false
-	add_referemce_marks = false
-	add_wide_passage = false
-end
+-- Max height to clear trees and other brush, when clear tree cover enabled.
+local clear_trees_max = 30
 
 -- Lights are placed in tunnel ceilings to light the way.
 local add_lighting = true
@@ -180,12 +129,22 @@ end)
 minetest.register_on_joinplayer(function(player)
 	local pname = player:get_player_name()
 	tunnelmaker[pname] = {updown = 0, lastdir = -1, lastpos = {x = 0, y = 0, z = 0}}
-	user_config[pname] = {remove_refs = 0, train_mode = train_mode_default,
-		continuous_updown = continuous_updown_default, lock_desert_mode = false,
+	user_config[pname] = {
+		digging_mode = 2,
+		height = tunnel_height,
+		add_arches = add_arches_config,
+		add_lined_tunnels = add_lined_tunnels_default,
+		add_embankment = add_embankment_default,
+		add_floors = true,
+		add_wide_floors = false,
+		add_bike_ramps = false,
+		continuous_updown = continuous_updown_default,
+		lock_desert_mode = false,
+		clear_trees = 0,
+		remove_refs = 0,
 		use_desert_material = add_desert_material and minetest.get_biome_data and
 			string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert"),
-		add_embankment = add_embankment_default,
-		add_lined_tunnels = add_lined_tunnels_default}
+	}
 end)
 
 -- Delete player's state when player leaves
@@ -276,8 +235,8 @@ local images = {
 		"tunnelmaker_28.png", "tunnelmaker_29.png", "tunnelmaker_30.png", "tunnelmaker_31.png",
 }
 
--- Tests whether position is in desert-type biomes, such as desert, sandstone_desert, cold_desert, etc
--- Always just returns false if can't determine biome (i.e., using 0.4.x version)
+-- Tests whether position is in desert-type biomes, such as desert, sandstone_desert, cold_desert, etc.
+-- Always just returns false if can't determine biome (i.e., using 0.4.x version).
 local is_desert = function(user, pos)
 	local pname = user:get_player_name()
 	if add_desert_material and minetest.get_biome_data then
@@ -292,436 +251,407 @@ local is_desert = function(user, pos)
 	end
 end
 
--- Visible location of the regions ? in the cut of the direct tunnel. Region ? is used for ascents and descents between ? and ?
--- | |3|3|3|3|3| |
--- |3|3|2|1|2|3|3|
--- |3|2|0|0|0|2|3|
--- |3|2|0|0|0|2|3|
--- |3|2|0|0|0|2|3|
--- |3|2|0|0|0|2|3|
--- |3|3|5|4|5|3|3|
--- | |8|6|6|6|8| |
-
-local region0 = function(x, y, z, user, pointed_thing)
-	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-	local name = minetest.get_node(pos).name
-	if not minetest.is_protected(pos, user) then
-		if not(name == lighting or string.match(name, "dtrack")) and (add_dry_tunnels or not(add_dry_tunnels or string.match(name, "water"))) then
-			minetest.set_node(pos, {name = "air"})
-		end
+-- Returns correct lining material based on whether to use desert or not.
+local lining_material = function(user, pos)
+	if is_desert(user, pos) then
+		return coating_desert
+	else
+		return coating_not_desert
 	end
 end
 
-local region1 = function(spacing, user, pointed_thing)
-	local pos = vector.add(pointed_thing.under, {x=0, y=5+ith, z=0})
-	local ceiling = minetest.get_node(vector.add(pos, {x=0, y=1, z=0})).name
-	if not minetest.is_protected(pos, user) then
-		if add_lighting and (ceiling == coating_not_desert or ceiling == coating_desert or ceiling == glass_walls) and
-				minetest.get_node(pos).name == "air" and
-				minetest.find_node_near(pos, spacing, {name = lighting}) == nil then
-			minetest.set_node(pos, {name = lighting})
-		end
-		-- roof height can now be 5 or six so try again one higher
-		pos = vector.add(pointed_thing.under, {x=0, y=6+ith, z=0})
-		ceiling = minetest.get_node(vector.add(pos, {x=0, y=1, z=0})).name
-		if add_lighting and (ceiling == coating_not_desert or ceiling == coating_desert or ceiling == glass_walls) and
-				minetest.get_node(pos).name == "air" and
-				minetest.find_node_near(pos, spacing, {name = lighting}) == nil then
-			minetest.set_node(pos, {name = lighting})
-		end
-	end
-end
-
-local region2 = function(x, y, z, user, pointed_thing)
-	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-	local name = minetest.get_node(pos).name
-	if not minetest.is_protected(pos, user) then
-		local group_flammable = false
-		if minetest.registered_nodes[name] then
-			group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
-		end
-		if not(name == lighting or  string.match(name, "dtrack")) and
-				(add_dry_tunnels or not(add_dry_tunnels or string.match(name, "water"))) and
-				(add_wide_passage or not(add_wide_passage or group_flammable)) then
-			minetest.set_node(pos, {name = "air"})
-		end
-	end
-end
-
-local region3 = function(x, y, z, user, pointed_thing)
-	local pname = user:get_player_name()
-	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-	local name = minetest.get_node(pos).name
-	local param2 = minetest.get_node(pos).param2
-	if not minetest.is_protected(pos, user) then
-		if add_dry_tunnels and string.match(name, "water") then
-				minetest.set_node(pos, {name = glass_walls})
-		else
-			local group_flammable = false
-			if minetest.registered_nodes[name] then
-				group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
-			end
-			if not(string.match(name, "water") or name == "air" or name == glass_walls or
-				(user_config[pname].add_embankment and user_config[pname].train_mode and name == embankment and param2 == 42) or
-				name == reference_marks or name == lighting or string.match(name, "dtrack")) and
-				user_config[pname].add_lined_tunnels and user_config[pname].train_mode then
-				if not group_flammable then
-					if is_desert(user, pos) then
-						minetest.set_node(pos, {name = coating_desert})
-					else
-						minetest.set_node(pos, {name = coating_not_desert})
-					end
-				else
-					if add_wide_passage then
-						minetest.set_node(pos, {name = "air"})
-					end
-				end
-			end
-		end
-	end
-end
-
--- Reference regions
-local region4 = function(x, y, z, user, pointed_thing)
-	local pname = user:get_player_name()
-	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-	local name = minetest.get_node(pos).name
-	if not minetest.is_protected(pos, user) and not string.match(name, "dtrack") then
-		-- Figure out what replacement material should be
-		local rep_mat
-		local group_flammable = false
-		if minetest.registered_nodes[name] then
-			group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
-		end
-		if user_config[pname].add_embankment and user_config[pname].train_mode then
-			rep_mat = embankment
-		else
-			if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
-				if is_desert(user, pos) then
-					rep_mat = coating_desert
-				else
-					rep_mat = coating_not_desert
-				end
-			end
-		end
-		if add_reference_marks then
-			minetest.set_node(pos, {name = reference_marks})
-			local meta = minetest.get_meta(pos)
-			meta:set_string("replace_with", rep_mat)
-		else
-			if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
-				if rep_mat == embankment then
-					minetest.set_node(pos, {name = rep_mat, param2 = 42})
-				else
-					minetest.set_node(pos, {name = rep_mat})
-				end
-			end
-		end
-	end
-end
-
--- Basic non-reference floor region
-local region5 = function(x, y, z, user, pointed_thing)
-	local pname = user:get_player_name()
-	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-	local name = minetest.get_node(pos).name
-	if not minetest.is_protected(pos, user) and not(name == reference_marks or string.match(name, "dtrack")) then
-		if user_config[pname].add_embankment and user_config[pname].train_mode then
-			minetest.set_node(pos, {name = embankment, param2 = 42})
-		else
-			local group_flammable = false
-			if minetest.registered_nodes[name] then
-				group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
-			end
-			if base_coating or string.match(name, "water") or name == "air" or name == glass_walls or group_flammable then
-				if is_desert(user, pos) then
-					minetest.set_node(pos, {name = coating_desert})
-				else
-					minetest.set_node(pos, {name = coating_not_desert})
-				end
-			end
-		end
-	end
-end
-
-local region6 = function(x, y, z, user, pointed_thing)
-	local pname = user:get_player_name()
-	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-	local name = minetest.get_node(pos).name
-	if not minetest.is_protected(pos, user) and not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and
-		user_config[pname].add_embankment and user_config[pname].train_mode then
-		if is_desert(user, pos) then
-			minetest.set_node(pos, {name = coating_desert})
-		else
-			minetest.set_node(pos, {name = coating_not_desert})
-		end
-	end
-end
-
-local region7 = function(x, y, z, user, pointed_thing)
-	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-	local name = minetest.get_node(pos).name
-	if not minetest.is_protected(pos, user) and not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) then
-		if is_desert(user, pos) then
-			minetest.set_node(pos, {name = coating_desert})
-		else
-			minetest.set_node(pos, {name = coating_not_desert})
-		end
-	end
-end
-
-local region8 = function(x, y, z, user, pointed_thing)
-	local pname = user:get_player_name()
-	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-	local name = minetest.get_node(pos).name
+-- Tests whether node is flammable, mainly vegetation.
+local is_flammable = function(name)
 	local group_flammable = false
 	if minetest.registered_nodes[name] then
 		group_flammable = minetest.registered_nodes[name].groups.flammable and minetest.registered_nodes[name].groups.flammable > 0
 	end
-	if not minetest.is_protected(pos, user) and not(name == coating_not_desert or name == reference_marks or string.match(name, "dtrack")) and
-		user_config[pname].add_embankment and user_config[pname].train_mode and (add_wide_passage or not(add_wide_passage or group_flammable)) then
-		if is_desert(user, pos) then
-			minetest.set_node(pos, {name = coating_desert})
-		else
-			minetest.set_node(pos, {name = coating_not_desert})
-		end
-	end
+	return group_flammable
 end
 
-
-local ggggg = function(x, y0, y1, z, user, pointed_thing)
-	for y=y1, y0, -1 do
-		region3(x, y, z, user, pointed_thing)
-	end
-end
-
-local ggagg = function(x, y0, y1, z, user, pointed_thing)
-	region3(x, y1+2, z, user, pointed_thing)
-	if add_arches then
-		region3(x, y1+1, z, user, pointed_thing)
+-- Tests whether node is a light. (Note that it could also be flammable).
+local is_light = function(name)
+	if minetest.registered_nodes[name] then
+		return minetest.registered_nodes[name].light_source > 0
 	else
-		region2(x, y1+1, z, user, pointed_thing)
+		return false
 	end
-	for y=y1, y0+1, -1 do
-		region2(x, y, z, user, pointed_thing)
-	end
-	region3(x, y0, z, user, pointed_thing)
-	region3(x, y0-1, z, user, pointed_thing)
-	region8(x, y0-2, z, user, pointed_thing)
 end
 
-local gaagg = function(x, y0, y1, z, user, pointed_thing)
-	region3(x, y1+2, z, user, pointed_thing)
-	if add_arches then
-		region3(x, y1+1, z, user, pointed_thing)
-	else
-		region2(x, y1+1, z, user, pointed_thing)
-	end
-	for y=y1, y0+1, -1 do
-		region2(x, y, z, user, pointed_thing)
-	end
-	region3(x, y0, z, user, pointed_thing)
-	region8(x, y0-1, z, user, pointed_thing)
-end
-
-local gaggg = function(x, y0, y1, z, user, pointed_thing)
-	region3(x, y1+3, z, user, pointed_thing)
-	region3(x, y1+2, z, user, pointed_thing)
-	if add_arches then
-		region3(x, y1+1, z, user, pointed_thing)
-	else
-		region2(x, y1+1, z, user, pointed_thing)
-	end
-	for y=y1, y0+1, -1 do
-		region2(x, y, z, user, pointed_thing)
-	end
-	region3(x, y0, z, user, pointed_thing)
-	region8(x, y0-1, z, user, pointed_thing)
-end
-
-local gaxgx = function(x, y0, y1, z, user, pointed_thing)
-	region3(x, y1+2, z, user, pointed_thing)
-	if add_arches then
-		region3(x, y1+1, z, user, pointed_thing)
-	else
-		region3(x, y1+3, z, user, pointed_thing)
-		region2(x, y1+1, z, user, pointed_thing)
-	end
-	for y=y1, y0+1, -1 do
-		region2(x, y, z, user, pointed_thing)
-	end
-	region3(x, y0, z, user, pointed_thing)
-	region8(x, y0-1, z, user, pointed_thing)
-end
-
-local saagg = function(x, y0, y1, z, user, pointed_thing)
-	region3(x, y1+2, z, user, pointed_thing)
-	region3(x, y1+1, z, user, pointed_thing)
-	region2(x, y1, z, user, pointed_thing)
-	for y=y1-1, y0+1, -1 do
-		region0(x, y, z, user, pointed_thing)
-	end
-	region5(x, y0, z, user, pointed_thing)
-	region6(x, y0-1, z, user, pointed_thing)
-end
-
-local ssaag = function(x, y0, y1, z, user, pointed_thing)
-	region3(x, y1+1, z, user, pointed_thing)
-	region2(x, y1, z, user, pointed_thing)
-	for y=y1-1, y0+1, -1 do
-		region0(x, y, z, user, pointed_thing)
-	end
-	region5(x, y0, z, user, pointed_thing)
-	region7(x, y0-1, z, user, pointed_thing)
-	region6(x, y0-2, z, user, pointed_thing)
-end
-
-local saaag = function(x, y0, y1, z, user, pointed_thing)
-	region3(x, y1+1, z, user, pointed_thing)
-	region2(x, y1, z, user, pointed_thing)
-	for y=y1-1, y0+1, -1 do
-		region0(x, y, z, user, pointed_thing)
-	end
-	region5(x, y0, z, user, pointed_thing)
-	region6(x, y0-1, z, user, pointed_thing)
-end
-
-local baaag = function(x, y0, y1, z, user, pointed_thing)
-	region3(x, y1+1, z, user, pointed_thing)
-	region2(x, y1, z, user, pointed_thing)
-	for y=y1-1, y0+1, -1 do
-		region0(x, y, z, user, pointed_thing)
-	end
-	region4(x, y0, z, user, pointed_thing)
-	region6(x, y0-1, z, user, pointed_thing)
-end
-
-local baagg = function(x, y0, y1, z, user, pointed_thing)
-	region3(x, y1+2, z, user, pointed_thing)
-	region3(x, y1+1, z, user, pointed_thing)
-	region2(x, y1, z, user, pointed_thing)
-	for y=y1-1, y0+1, -1 do
-		region0(x, y, z, user, pointed_thing)
-	end
-	region4(x, y0, z, user, pointed_thing)
-	region6(x, y0-1, z, user, pointed_thing)
-end
-
-local sbaag = function(x, y0, y1, z, user, pointed_thing)
-	region3(x, y1+1, z, user, pointed_thing)
-	region2(x, y1, z, user, pointed_thing)
-	for y=y1-1, y0+1, -1 do
-		region0(x, y, z, user, pointed_thing)
-	end
-	region4(x, y0, z, user, pointed_thing)
-	region7(x, y0-1, z, user, pointed_thing)
-	region6(x, y0-2, z, user, pointed_thing)
-end
+local region  -- Declare so I can use these functions recursively.
+region = {
+	[0] =  -- Null.
+		function(x, y, z, user, pointed_thing)
+		end,
+	[1] =  -- Air. Don't delete lights or track. (Works with torches, but not with ceiling mounted lamps.)
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				local name = minetest.get_node(pos).name
+				if not (is_light(name) or string.match(name, "dtrack")) then
+					minetest.set_node(pos, {name = "air"})
+				end
+			end
+		end,
+	[2] =  -- Ceiling.
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				local pname = user:get_player_name()
+				local name = minetest.get_node(pos).name
+				if string.match(name, "water") then  -- Always line water with glass.
+					minetest.set_node(pos, {name = glass_walls})
+				elseif user_config[pname].add_lined_tunnels then  -- Line tunnel ...
+					if not (name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name)) then  -- except for these.
+						minetest.set_node(pos, {name = lining_material(user, pos)})
+					end
+				else  -- Don't line tunnel, but convert different sands to sandstone and gravel to cobble.
+					if string.match(name, "default:sand") or string.match(name, "default:silver_sand") or string.match(name, "default:desert_sand") then
+						minetest.set_node(pos, {name = "default:sandstone"})
+					elseif string.match(name, "default:gravel") then
+						minetest.set_node(pos, {name = "default:cobble"})
+					end
+				end
+				if user_config[pname].clear_trees > 0 then  -- Check if need to clear tree cover above dig.
+					for i = y, clear_trees_max do
+						local posi = vector.add(pointed_thing.under, {x=x, y=i, z=z})
+						local namei = minetest.get_node(posi).name
+						if namei == "default:snow" or is_flammable(namei) then
+							minetest.set_node(posi, {name = "air"})
+						elseif namei ~= "air" then
+							break
+						end
+					end
+				end
+			end
+		end,
+	[3] =  -- Side walls.
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				local pname = user:get_player_name()
+				local name = minetest.get_node(pos).name
+				if string.match(name, "water") then
+					minetest.set_node(pos, {name = glass_walls})  -- Always line water with glass.
+				elseif user_config[pname].add_lined_tunnels then  -- Line tunnel ...
+					if not (name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name)) then  -- except for these.
+						minetest.set_node(pos, {name = lining_material(user,pos)})
+					end
+				end
+			end
+		end,
+	[4] =  -- Temporary endcaps.
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				local name = minetest.get_node(pos).name
+				if string.match(name, "water") then  -- Place temporary endcap if water.
+					minetest.set_node(pos, {name = glass_walls})
+				end
+			end
+		end,
+	[5] =  -- Reference markers.
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				local pname = user:get_player_name()
+				local name = minetest.get_node(pos).name
+				-- Figure out what replacement material should be.
+				local rep_mat
+				if user_config[pname].add_floors then  -- Add reference marks.
+					if user_config[pname].add_embankment then
+						rep_mat = embankment
+					else
+						rep_mat = lining_material(user, pos)
+					end
+					minetest.set_node(pos, {name = reference_marks})
+					local meta = minetest.get_meta(pos)
+					meta:set_string("replace_with", rep_mat)
+				else  -- Only fill holes.
+					if string.match(name, "water") or name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name) then
+						minetest.set_node(pos, {name = lining_material(user, pos)})
+					end
+				end
+			end
+		end,
+	[6] =  -- Embankment area.
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				local pname = user:get_player_name()
+				local name = minetest.get_node(pos).name
+				if user_config[pname].add_floors then  -- Going to set all.
+					if user_config[pname].add_embankment then
+						minetest.set_node(pos, {name = embankment, param2 = 42})
+					else
+						minetest.set_node(pos, {name = lining_material(user, pos)})
+					end
+				else  -- Only fill holes.
+					if string.match(name, "water") or name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name) then
+						minetest.set_node(pos, {name = lining_material(user, pos)})
+					end
+				end
+			end
+		end,
+	[7] =  -- Wide floors. (starting to refine)
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				local pname = user:get_player_name()
+				local name = minetest.get_node(pos).name
+				if user_config[pname].add_floors and user_config[pname].add_wide_floors then
+					local param2 = minetest.get_node(pos).param2
+					local pos0 = vector.add(pos, {x=0, y=-1, z=0})
+					local node0 = minetest.get_node(pos0)
+					if not ((node0.name == coating_desert or node0.name == coating_not_desert) and node0.param2 == 7) and  -- Exception to match diagonal up and down digging.
+							not (name == embankment and param2 == 42) then  -- don't overwrite embankment
+						minetest.set_node(pos, {name = lining_material(user, pos), param2 = 7})
+					end
+				else  -- Not wide. However, this makes double-wide glass when digging at water surface level.
+					if string.match(name, "water") then
+						minetest.set_node(pos, {name = glass_walls})
+					end
+				end
+			end
+		end,
+	[8] =  -- Underfloor, only used directly for slope up and slope down where embankment or brace is always needed.
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				minetest.set_node(pos, {name = lining_material(user, pos)})
+			end
+		end,
+	[12] =  -- Bike slabs. Add on slopes.
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				local pname = user:get_player_name()
+				if user_config[pname].add_bike_ramps then
+					if is_desert(user, pos) then
+						minetest.set_node(pos, {name = "stairs:slab_desert_stone", param2 = 2})
+					else
+						minetest.set_node(pos, {name = "stairs:slab_stone", param2 = 2})
+					end
+				else
+					region[1](x, y, z, user, pointed_thing)
+				end
+			end
+		end,
+	[17] =  -- Bike slabs. Don't remove bike slabs placed by previous down slope.
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				local pname = user:get_player_name()
+				local node = minetest.get_node(pos)
+				if not user_config[pname].add_bike_ramps or (user_config[pname].add_bike_ramps and
+						not (node.name == "stairs:slab_stone" and node.param2 == 2) or
+						(node.name == "stairs:slab_desert_stone" and node.param2 == 2)) then
+					region[1](x, y, z, user, pointed_thing)
+				end
+			end
+		end,
+	[21] =  -- Arch or air, (use for arch).
+		function(x, y, z, user, pointed_thing)
+			local pname = user:get_player_name()
+			if user_config[pname].add_arches then  -- arches
+				region[2](x, y, z, user, pointed_thing)
+			else
+				region[1](x, y, z, user, pointed_thing)
+			end
+		end,
+	[30] =  -- Wall or null (based on arches).
+		function(x, y, z, user, pointed_thing)
+			local pname = user:get_player_name()
+			if not user_config[pname].add_arches then
+				region[3](x, y, z, user, pointed_thing)
+			end
+		end,
+	[32] =  -- Wall or ceiling, (use above arch).
+		function(x, y, z, user, pointed_thing)
+			local pname = user:get_player_name()
+			if user_config[pname].add_arches then
+				region[3](x, y, z, user, pointed_thing)
+			else
+				region[2](x, y, z, user, pointed_thing)
+			end
+		end,
+	[37] =  -- Floor under wall. Only place floor under wall if wall right above floor.
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				local name = minetest.get_node(pos).name
+				local pos1 = vector.add(pos, {x=0, y=1, z=0})
+				local name1 = minetest.get_node(pos1).name
+				if string.match(name, "water") then
+					minetest.set_node(pos, {name = glass_walls})
+				elseif name1 == coating_not_desert or name1 == coating_desert then
+					minetest.set_node(pos, {name = lining_material(user, pos)})
+				end
+			end
+		end,
+	[40] =  -- Endcap or null (based on arches).
+		function(x, y, z, user, pointed_thing)
+			local pname = user:get_player_name()
+			if not user_config[pname].add_arches then
+				region[4](x, y, z, user, pointed_thing)
+			end
+		end,
+	[77] =  -- Add light. Need to figure out how to handle ceiling lamps. They get placed, but cleared by [1]
+		function(x, y, z, user, pointed_thing)
+			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+			if not minetest.is_protected(pos, user) then
+				region[1](x, y, z, user, pointed_thing)
+				local name = minetest.get_node(pos).name
+				local pos1 = vector.add(pos, {x=0, y=1, z=0})
+				--local name1 = minetest.get_node(pos1).name
+				if name == "air" then
+					local ceiling = minetest.get_node(pos1).name
+					if add_lighting and (ceiling == coating_not_desert or ceiling == coating_desert or ceiling == glass_walls) and
+							minetest.find_node_near(pos, lighting_search_radius, {name = lighting}) == nil then
+						minetest.set_node(pos, {name = lighting})
+					end
+				end
+			end
+		end,
+	[86] =  -- Underfloor under embankment.
+		function(x, y, z, user, pointed_thing)
+			local pname = user:get_player_name()
+			if user_config[pname].add_floors and user_config[pname].add_embankment then
+				region[8](x, y, z, user, pointed_thing)
+			end
+		end,
+	[87] =  -- Underfloor under wide floor.
+		function(x, y, z, user, pointed_thing)
+			local pname = user:get_player_name()
+			if user_config[pname].add_floors and user_config[pname].add_wide_floors then
+				region[8](x, y, z, user, pointed_thing)
+			end
+		end,
+}
 
 -- Add flips and rotates so I only need to define the seven basic digging patterns.
 -- For flip: 1 = vertical, -1 = horizontal, 2 = both.
 -- For rotate: 1 = clockwise, -1 = counterclockwise.
 
-local fliprot = function(pos, f, r)
-	local res = {}
+local fliprot = function(xzpos, f, r)
+	local xzres = {xzpos[1], xzpos[2]}  -- identity
 	if f == 2 then  -- double flip
-		res.x = -pos.x
-		res.z = -pos.z
+		xzres[1] = -xzpos[1]
+		xzres[2] = -xzpos[2]
 	elseif f ~= 0 and r == 0 then  -- single flip
-		res.x = f * pos.x
-		res.z = -f * pos.z
+		xzres[1] = f * xzpos[1]
+		xzres[2] = -f * xzpos[2]
 	elseif f == 0 and r ~= 0 then  -- rotate
-		res.x = r * pos.z
-		res.z = -r * pos.x
+		xzres[1] = r * xzpos[2]
+		xzres[2] = -r * xzpos[1]
 	elseif f ~= 0 and r ~= 0 then  -- flip + rotate
-		res.x = f * r * pos.z
-		res.z = f * r * pos.x
-	else  -- identity
-		res.x = pos.x
-		res.z = pos.z
+		xzres[1] = f * r * xzpos[2]
+		xzres[2] = f * r * xzpos[1]
 	end
-	return res
+	return xzres
 end
 
--- To shorten the code, this function takes a list of lists with {function, x-coord, y-coord} and executes them in sequence.
 local run_list = function(dir_list, f, r, user, pointed_thing)
+	local pname = user:get_player_name()
+	local height = user_config[pname].height
 	for _,v in ipairs(dir_list) do
-		local pos = {}
-		pos.x = v[2]
-		pos.z = v[5]
-		local newpos = fliprot(pos, f, r)
-		v[1](newpos.x, v[3], v[4], newpos.z, user, pointed_thing)
+		local newpos = fliprot(v[1], f, r)
+		for i = 9, 6, -1 do  -- ceiling
+			region[v[2][i]](newpos[1], i + height - 7, newpos[2], user, pointed_thing)
+		end
+		for y = (height - 2), 2, -1 do  -- variable mid region repeats element 5
+			region[v[2][5]](newpos[1], y, newpos[2], user, pointed_thing)
+		end
+		for i = 4, 1, -1 do  -- floor
+			region[v[2][i]](newpos[1], i-3, newpos[2], user, pointed_thing)
+		end
 	end
 end
 
 -- Dig tunnel based on direction given.
 local dig_tunnel = function(cdir, user, pointed_thing)
 	if minetest.check_player_privs(user, "tunneling") then
-		local ath = ith
-		if not add_arches then
-			ath = ith+1
-		end
 
-		local dig_patterns = {
-			-- Orthogonal (north reference).
-			[1] = { {ggggg,-3, 0, 5+ath, 3},{ggggg,-2, 0, 6+ith, 3},{ggggg,-1, 0, 6+ith, 3},{ggggg, 0, 0, 6+ith, 3},{ggggg, 1, 0, 6+ith, 3},{ggggg, 2, 0, 6+ith, 3},{ggggg, 3, 0, 5+ath, 3},
-					{ggggg,-3, 0, 5+ath, 2},{gaagg,-2, 0, 4+ith, 2},{saaag,-1, 0, 5+ith, 2},{baaag, 0, 0, 5+ith, 2},{saaag, 1, 0, 5+ith, 2},{gaagg, 2, 0, 4+ith, 2},{ggggg, 3, 0, 5+ath, 2},
-					{ggggg,-3, 0, 5+ath, 1},{gaagg,-2, 0, 4+ith, 1},{saaag,-1, 0, 5+ith, 1},{saaag, 0, 0, 5+ith, 1},{saaag, 1, 0, 5+ith, 1},{gaagg, 2, 0, 4+ith, 1},{ggggg, 3, 0, 5+ath, 1},
-					{ggggg,-3, 0, 5+ath, 0},{gaagg,-2, 0, 4+ith, 0},{saaag,-1, 0, 5+ith, 0},{baaag, 0, 0, 5+ith, 0},{saaag, 1, 0, 5+ith, 0},{gaagg, 2, 0, 4+ith, 0},{ggggg, 3, 0, 5+ath, 0},
-					{ggggg,-3, 0, 5+ath,-1},{ggggg,-2, 0, 6+ith,-1},{ggggg,-1, 0, 6+ith,-1},{ggggg, 0, 0, 6+ith,-1},{ggggg, 1, 0, 6+ith,-1},{ggggg, 2, 0, 6+ith,-1},{ggggg, 3, 0, 5+ath,-1},
-					},
-			-- Knight move (north-northwest reference).
-			[2] = { {ggggg,-4, 0, 5+ath, 3},{ggggg,-3, 0, 6+ith, 3},{ggggg,-2, 0, 6+ith, 3},{ggggg,-1, 0, 6+ith, 3},{ggggg, 0, 0, 6+ith, 3},{ggggg, 1, 0, 6+ith, 3},{ggggg, 2, 0, 5+ath, 3},
-					{ggggg,-4, 0, 5+ath, 2},{gaagg,-3, 0, 4+ith, 2},{saaag,-2, 0, 5+ith, 2},{baaag,-1, 0, 5+ith, 2},{saaag, 0, 0, 5+ith, 2},{gaagg, 1, 0, 4+ith, 2},{ggggg, 2, 0, 6+ith, 2},{ggggg, 3, 0, 5+ath, 2},
-					{ggggg,-4, 0, 5+ath, 1},{gaagg,-3, 0, 4+ith, 1},{saaag,-2, 0, 5+ith, 1},{saaag,-1, 0, 5+ith, 1},{saaag, 0, 0, 5+ith, 1},{saaag, 1, 0, 5+ith, 1},{gaagg, 2, 0, 4+ith, 1},{ggggg, 3, 0, 5+ath, 1},
-					{ggggg,-4, 0, 5+ath, 0},{ggggg,-3, 0, 6+ith, 0},{gaagg,-2, 0, 4+ith, 0},{saaag,-1, 0, 5+ith, 0},{baaag, 0, 0, 5+ith, 0},{saaag, 1, 0, 5+ith, 0},{gaagg, 2, 0, 4+ith, 0},{ggggg, 3, 0, 5+ath, 0},
-											{ggggg,-3, 0, 5+ath,-1},{ggggg,-2, 0, 6+ith,-1},{ggggg,-1, 0, 6+ith,-1},{ggggg, 0, 0, 6+ith,-1},{ggggg, 1, 0, 6+ith,-1},{ggggg, 2, 0, 6+ith,-1},{ggggg, 3, 0, 5+ath,-1},
-					},
-			-- Diagonal (northwest reference).
-			[3] = {																			{ggggg,-1, 0, 5+ath, 4},{ggggg, 0, 0, 5+ath, 4},{ggggg, 1, 0, 5+ath, 4},
-																							{ggggg,-1, 0, 6+ith, 3},{gaagg, 0, 0, 4+ith, 3},{ggggg, 1, 0, 6+ith, 3},{ggggg, 2, 0, 5+ath, 3},
-																	{ggggg,-2, 0, 6+ith, 2},{ggggg,-1, 0, 6+ith, 2},{saaag, 0, 0, 5+ith, 2},{gaagg, 1, 0, 4+ith, 2},{ggggg, 2, 0, 6+ith, 2},{ggggg, 3, 0, 5+ath, 2},
-					{ggggg,-4, 0, 5+ath, 1},{ggggg,-3, 0, 6+ith, 1},{ggggg,-2, 0, 6+ith, 1},{baaag,-1, 0, 5+ith, 1},{saaag, 0, 0, 5+ith, 1},{saaag, 1, 0, 5+ith, 1},{gaagg, 2, 0, 4+ith, 1},{ggggg, 3, 0, 5+ath, 1},
-					{ggggg,-4, 0, 5+ath, 0},{gaagg,-3, 0, 4+ith, 0},{saaag,-2, 0, 5+ith, 0},{saaag,-1, 0, 5+ith, 0},{baaag, 0, 0, 5+ith, 0},{ggggg, 1, 0, 6+ith, 0},{ggggg, 2, 0, 6+ith, 0},{ggggg, 3, 0, 5+ath, 0},
-					{ggggg,-4, 0, 5+ath,-1},{ggggg,-3, 0, 6+ith,-1},{gaagg,-2, 0, 4+ith,-1},{saaag,-1, 0, 5+ith,-1},{ggggg, 0, 0, 6+ith,-1},{ggggg, 1, 0, 6+ith,-1},
-											{ggggg,-3, 0, 5+ath,-2},{ggggg,-2, 0, 6+ith,-2},{gaagg,-1, 0, 4+ith,-2},{ggggg, 0, 0, 6+ith,-2},
-																	{ggggg,-2, 0, 5+ath,-3},{ggggg,-1, 0, 5+ath,-3},{ggggg, 0, 0, 5+ath,-3},
-					},
-			-- Orthogonal slope down (north reference).
-			[10] = {{ggggg,-3,-1, 4+ath, 3},{ggggg,-2,-1, 5+ith, 3},{ggggg,-1,-1, 5+ith, 3},{ggggg, 0,-1, 5+ith, 3},{ggggg, 1,-1, 5+ith, 3},{ggggg, 2,-1, 5+ith, 3},{ggggg, 3,-1, 4+ath, 3},
-					{ggggg,-3,-1, 5+ath, 2},{gaggg,-2,-1, 3+ith, 2},{saagg,-1,-1, 4+ith, 2},{baagg, 0,-1, 4+ith, 2},{saagg, 1,-1, 4+ith, 2},{gaggg, 2,-1, 3+ith, 2},{ggggg, 3,-1, 5+ath, 2},
-					{ggggg,-3,-1, 5+ath, 1},{gaagg,-2,-1, 4+ith, 1},{saaag,-1,-1, 5+ith, 1},{saaag, 0,-1, 5+ith, 1},{saaag, 1,-1, 5+ith, 1},{gaagg, 2,-1, 4+ith, 1},{ggggg, 3,-1, 5+ath, 1},
-					{ggggg,-3,-1, 5+ath, 0},{ggagg,-2, 0, 4+ith, 0},{ssaag,-1, 0, 5+ith, 0},{sbaag, 0, 0, 5+ith, 0},{ssaag, 1, 0, 5+ith, 0},{ggagg, 2, 0, 4+ith, 0},{ggggg, 3,-1, 5+ath, 0},
-					{ggggg,-3, 0, 5+ath,-1},{ggggg,-2, 0, 6+ith,-1},{ggggg,-1, 0, 6+ith,-1},{ggggg, 0, 0, 6+ith,-1},{ggggg, 1, 0, 6+ith,-1},{ggggg, 2, 0, 6+ith,-1},{ggggg, 3, 0, 5+ath,-1},
-					},
-			-- Orthogonal slope up (north reference).
-			[11] = {{ggggg,-3, 1, 6+ath, 3},{ggggg,-2, 1, 7+ith, 3},{ggggg,-1, 1, 7+ith, 3},{ggggg, 0, 1, 7+ith, 3},{ggggg, 1, 1, 7+ith, 3},{ggggg, 2, 1, 7+ith, 3},{ggggg, 3, 1, 6+ath, 3},
-					{ggggg,-3, 0, 6+ath, 2},{ggagg,-2, 1, 5+ith, 2},{ssaag,-1, 1, 6+ith, 2},{sbaag, 0, 1, 6+ith, 2},{ssaag, 1, 1, 6+ith, 2},{ggagg, 2, 1, 5+ith, 2},{ggggg, 3, 0, 6+ath, 2},
-					{ggggg,-3, 0, 6+ath, 1},{gaagg,-2, 0, 5+ith, 1},{saaag,-1, 0, 6+ith, 1},{saaag, 0, 0, 6+ith, 1},{saaag, 1, 0, 6+ith, 1},{gaagg, 2, 0, 5+ith, 1},{ggggg, 3, 0, 6+ath, 1},
-					{ggggg,-3, 0, 6+ath, 0},{gaggg,-2, 0, 4+ith, 0},{saagg,-1, 0, 5+ith, 0},{baagg, 0, 0, 5+ith, 0},{saagg, 1, 0, 5+ith, 0},{gaggg, 2, 0, 4+ith, 0},{ggggg, 3, 0, 6+ath, 0},
-					{ggggg,-3, 0, 5+ath,-1},{ggggg,-2, 0, 6+ith,-1},{ggggg,-1, 0, 6+ith,-1},{ggggg, 0, 0, 6+ith,-1},{ggggg, 1, 0, 6+ith,-1},{ggggg, 2, 0, 6+ith,-1},{ggggg, 3, 0, 5+ath,-1},
-					},
-			-- Diagonal slope down (northwest reference).
-			[30] = {																		{ggggg,-1,-1, 4+ath, 4},{ggggg, 0,-1, 4+ath, 4},{ggggg, 1,-1, 4+ath, 4},
-																							{ggggg,-1,-1, 5+ith, 3},{gaxgx, 0,-1, 3+ith, 3},{ggggg, 1,-1, 5+ath, 3},{ggggg, 2,-1, 5+ath, 3},
-																	{ggggg,-2,-1, 5+ith, 2},{ggggg,-1,-1, 6+ith, 2},{saagg, 0,-1, 4+ith, 2},{gaagg, 1,-1, 4+ith, 2},{ggggg, 2,-1, 6+ith, 2},{ggggg, 3, 0, 5+ath, 2},
-					{ggggg,-4,-1, 4+ath, 1},{ggggg,-3,-1, 5+ith, 1},{ggggg,-2,-1, 6+ith, 1},{baagg,-1,-1, 4+ith, 1},{saaag, 0,-1, 5+ith, 1},{ssaag, 1, 0, 5+ith, 1},{ggagg, 2, 0, 4+ith, 1},{ggggg, 3, 0, 5+ath, 1},
-					{ggggg,-4,-1, 4+ath, 0},{gaxgx,-3,-1, 3+ith, 0},{saagg,-2,-1, 4+ith, 0},{saaag,-1,-1, 5+ith, 0},{sbaag, 0, 0, 5+ith, 0},{ggggg, 1, 0, 6+ith, 0},{ggggg, 2, 0, 6+ith, 0},{ggggg, 3, 0, 5+ath, 0},
-					{ggggg,-4,-1, 4+ath,-1},{ggggg,-3,-1, 5+ath,-1},{gaagg,-2,-1, 4+ith,-1},{ssaag,-1, 0, 5+ith,-1},{ggggg, 0, 0, 6+ith,-1},{ggggg, 1, 0, 6+ith,-1},
-											{ggggg,-3,-1, 5+ath,-2},{ggggg,-2,-1, 6+ith,-2},{ggagg,-1, 0, 4+ith,-2},{ggggg, 0, 0, 6+ith,-2},
-																	{ggggg,-2, 0, 5+ath,-3},{ggggg,-1, 0, 5+ath,-3},{ggggg, 0, 0, 5+ath,-3},
-					},
-			-- Diagonal slope up (northwest reference).
-			[31] = {																		{ggggg,-1, 1, 6+ath, 4},{ggggg, 0, 1, 6+ath, 4},{ggggg, 1, 1, 6+ath, 4},
-																							{ggggg,-1, 1, 7+ith, 3},{ggagg, 0, 1, 5+ith, 3},{ggggg, 1, 0, 7+ith, 3},{ggggg, 2, 0, 6+ath, 3},
-																	{ggggg,-2, 1, 7+ith, 2},{ggggg,-1, 1, 7+ith, 2},{ssaag, 0, 1, 6+ith, 2},{gaagg, 1, 0, 5+ith, 2},{ggggg, 2, 0, 6+ath, 2},{ggggg, 3, 0, 5+ath, 2},
-					{ggggg,-4, 1, 6+ath, 1},{ggggg,-3, 1, 7+ith, 1},{ggggg,-2, 1, 7+ith, 1},{sbaag,-1, 1, 6+ith, 1},{saaag, 0, 0, 6+ith, 1},{saagg, 1, 0, 5+ith, 1},{gaxgx, 2, 0, 4+ith, 1},{ggggg, 3, 0, 5+ath, 1},
-					{ggggg,-4, 1, 6+ath, 0},{ggagg,-3, 1, 5+ith, 0},{ssaag,-2, 1, 6+ith, 0},{saaag,-1, 0, 6+ith, 0},{baagg, 0, 0, 5+ith, 0},{ggggg, 1, 0, 7+ith, 0},{ggggg, 2, 0, 6+ith, 0},{ggggg, 3, 0, 5+ath, 0},
-					{ggggg,-4, 1, 6+ath,-1},{ggggg,-3, 0, 7+ith,-1},{gaagg,-2, 0, 5+ith,-1},{saagg,-1, 0, 5+ith,-1},{ggggg, 0, 0, 7+ith,-1},{ggggg, 1, 0, 6+ith,-1},
-											{ggggg,-3, 0, 6+ath,-2},{ggggg,-2, 0, 6+ath,-2},{gaxgx,-1, 0, 4+ith,-2},{ggggg, 0, 0, 6+ith,-2},
-																	{ggggg,-2, 0, 5+ath,-3},{ggggg,-1, 0, 5+ath,-3},{ggggg, 0, 0, 5+ath,-3},
-					},
-		}
+-- [9] = h + 2  (up ceiling)
+-- [8] = h + 1 (default ceiling)
+--
+-- [7] = h  (default arch)
+-- [6] = h - 1  (down arch)
+-- [5] = 2 to h - 2 (middle repeated, hmin = 3, zero instances,)
+-- [4] = 1   (up floor)
+--
+-- [3] = 0   (default floor)
+-- [2] = -1  (default base, down floor,)
+-- [1] = -2  (down base)
+
+		-- Floor underneath walls: I'd like it to not fill in if there is no wall right above it.
+
+        local dig_patterns = {
+            -- Orthogonal (north reference).
+            [1] = { {{-3, 3},{0,0, 4, 4,4,4,4, 40,0}}, {{-2, 3},{0,0,4, 4,4,4,4,   4,0}}, {{-1, 3},{0, 0,4, 4,4,4,4, 4,0}}, {{ 0, 3},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 1, 3},{0, 0,4, 4,4,4,4, 4,0}}, {{ 2, 3},{0,0,4, 4,4,4,4,   4,0}}, {{ 3, 3},{0,0, 4, 4,4,4,4, 40,0}},
+                    {{-3, 2},{0,0,37, 3,3,3,3, 30,0}}, {{-2, 2},{0,0,7, 1,1,1,21, 32,0}}, {{-1, 2},{0,86,6, 1,1,1,1, 2,0}}, {{ 0, 2},{0,86,5, 1,1,1,77, 2,0}}, {{ 1, 2},{0,86,6, 1,1,1,1, 2,0}}, {{ 2, 2},{0,0,7, 1,1,1,21, 32,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-3, 1},{0,0,37, 3,3,3,3, 30,0}}, {{-2, 1},{0,0,7, 1,1,1,21, 32,0}}, {{-1, 1},{0,86,6, 1,1,1,1, 2,0}}, {{ 0, 1},{0,86,6, 1,1,1, 1, 2,0}}, {{ 1, 1},{0,86,6, 1,1,1,1, 2,0}}, {{ 2, 1},{0,0,7, 1,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-3, 0},{0,0,37, 3,3,3,3, 30,0}}, {{-2, 0},{0,0,7, 1,1,1,21, 32,0}}, {{-1, 0},{0,86,6, 1,1,1,1, 2,0}}, {{ 0, 0},{0,86,5, 1,1,1, 1, 2,0}}, {{ 1, 0},{0,86,6, 1,1,1,1, 2,0}}, {{ 2, 0},{0,0,7, 1,1,1,21, 32,0}}, {{ 3, 0},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-3,-1},{0,0, 4, 4,4,4,4, 40,0}}, {{-2,-1},{0,0,4, 4,4,4,4,   4,0}}, {{-1,-1},{0, 0,4, 4,4,4,4, 4,0}}, {{ 0,-1},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 1,-1},{0, 0,4, 4,4,4,4, 4,0}}, {{ 2,-1},{0,0,4, 4,4,4,4,   4,0}}, {{ 3,-1},{0,0, 4, 4,4,4,4, 40,0}},
+                },
+
+            -- Knight move (north-northwest reference).
+            [2] = { {{-4, 3},{0,0, 4, 4,4,4,4, 40,0}}, {{-3, 3},{0,0, 4, 4,4,4, 4,  4,0}}, {{-2, 3},{0, 0,4, 4,4,4, 4, 0,0}}, {{-1, 3},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 0, 3},{0, 0,4, 4,4,4,4, 4,0}}, {{ 1, 3},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 2, 3},{0,0,37, 3,3,3, 3, 30,0}},
+                    {{-4, 2},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 2},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 2},{0,86,6, 1,1,1, 1, 2,0}}, {{-1, 2},{0,86,5, 1,1,1,77, 2,0}}, {{ 0, 2},{0,86,6, 1,1,1,1, 2,0}}, {{ 1, 2},{0, 0,7, 1,1,1,21,32,0}}, {{ 2, 2},{0,0,37, 3,3,3, 3,  3,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 1},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 1},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 1},{0,86,6, 1,1,1, 1, 2,0}}, {{-1, 1},{0,86,6, 1,1,1, 1, 2,0}}, {{ 0, 1},{0,86,6, 1,1,1,1, 2,0}}, {{ 1, 1},{0,86,6, 1,1,1, 1, 2,0}}, {{ 2, 1},{0,0, 7, 1,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 0},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 0},{0,0,37, 3,3,3, 3,  3,0}}, {{-2, 0},{0, 0,7, 1,1,1,21,32,0}}, {{-1, 0},{0,86,6, 1,1,1, 1, 2,0}}, {{ 0, 0},{0,86,5, 1,1,1,1, 2,0}}, {{ 1, 0},{0,86,6, 1,1,1, 1, 2,0}}, {{ 2, 0},{0,0, 7, 1,1,1,21, 32,0}}, {{ 3, 0},{0,0,37, 3,3,3,3, 30,0}},
+                                                       {{-3,-1},{0,0,37, 3,3,3, 3, 30,0}}, {{-2,-1},{0, 0,4, 4,4,4, 4, 4,0}}, {{-1,-1},{0, 0,0, 4,4,4, 4, 4,0}}, {{ 0,-1},{0, 0,4, 4,4,4,4, 4,0}}, {{ 1,-1},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 2,-1},{0,0, 4, 4,4,4, 4,  4,0}}, {{ 3,-1},{0,0, 4, 4,4,4,4, 40,0}},
+                },
+
+            -- Diagonal (northwest reference).
+            [3] = {                                                                                                             {{-1, 4},{0, 0, 4, 4,4,4, 4, 40,0}}, {{ 0, 4},{0, 0,37, 3,3,3,3,  30,0}}, {{ 1, 4},{0, 0,37, 3,3,3,3,  30,0}},
+                                                                                           {{-2, 3},{0, 0, 4,  4,4,4, 4,  4,0}}, {{-1, 3},{0, 0, 4, 4,4,4, 4,  4,0}}, {{ 0, 3},{0, 0, 7, 1,1,1,21, 32,0}}, {{ 1, 3},{0, 0,37, 3,3,3,3,   2,0}}, {{ 2, 3},{0,0,37,  3,3,3,3,  30,0}},
+                                                       {{-3, 2},{0,0, 4, 4,4, 4, 4, 4,0}}, {{-2, 2},{0, 0, 4,  4,4,4, 4,  4,0}}, {{-1, 2},{0, 0, 4, 4,4,4, 4,  4,0}}, {{ 0, 2},{0,86, 6, 1,1,1,1,   2,0}}, {{ 1, 2},{0, 0, 7, 1,1,1,21, 32,0}}, {{ 2, 2},{0,0,37,  3,3,3,3,   2,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 1},{0,0, 4, 4,4,4,4, 40,0}}, {{-3, 1},{0,0, 4, 4,4,4,4,   4,0}}, {{-2, 1},{0, 0, 4,  4,4,4, 4,  4,0}}, {{-1, 1},{0,86, 5, 1,1,1,77,  2,0}}, {{ 0, 1},{0,86, 6, 1,1,1,1,   2,0}}, {{ 1, 1},{0,86, 6, 1,1,1,1,   2,0}}, {{ 2, 1},{0,0, 7, 17,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 0},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 0},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 0},{0,86, 6,  1,1,1, 1,  2,0}}, {{-1, 0},{0,86, 6, 1,1,1, 1,  2,0}}, {{ 0, 0},{0,86, 5, 1,1,1,1,   2,0}}, {{ 1, 0},{0, 0, 4, 4,4,4,4,   4,0}}, {{ 2, 0},{0,0, 4,  4,4,4,4,   4,0}}, {{ 3, 0},{0,0, 4, 4,4,4,4, 40,0}},
+                    {{-4,-1},{0,0,37, 3,3,3,3, 30,0}}, {{-3,-1},{0,0,37, 3,3,3,3,   2,0}}, {{-2,-1},{0, 0, 7, 17,1,1,21, 32,0}}, {{-1,-1},{0,86, 6, 1,1,1, 1,  2,0}}, {{ 0,-1},{0, 0, 4, 4,4,4,4,   4,0}}, {{ 1,-1},{0, 0, 4, 4,4,4,4,   4,0}},
+                                                       {{-3,-2},{0,0,37, 3,3,3,3,  30,0}}, {{-2,-2},{0, 0,37,  3,3,3, 3,  2,0}}, {{-1,-2},{0, 0, 7, 1,1,1,21, 32,0}}, {{ 0,-2},{0, 0, 4, 4,4,4,4,   4,0}},
+                                                                                           {{-2,-3},{0, 0,37,  3,3,3, 3, 30,0}}, {{-1,-3},{0, 0,37, 3,3,3, 3, 30,0}}, {{ 0,-3},{0, 0, 4, 4,4,4,4,  40,0}},
+                },
+
+            -- Orthogonal slope down (north reference).
+            [10] = {{{-3, 3},{0, 4, 4, 4,4,4,40,  0,0}}, {{-2, 3},{0, 4, 4, 4,4, 4, 4,  0,0}}, {{-1, 3},{ 0,4, 4, 4,4,4,4, 0,0}}, {{ 0, 3},{ 0,4, 4, 4,4,4, 4, 0,0}}, {{ 1, 3},{ 0,4, 4, 4,4,4,4, 0,0}}, {{ 2, 3},{0, 4, 4, 4,4, 4, 4,  0,0}}, {{ 3, 3},{0, 4, 4, 4,4,4,40,  0,0}},
+                    {{-3, 2},{0,37, 3, 3,3,3, 3, 30,0}}, {{-2, 2},{0, 7, 1, 1,1,21,32, 32,0}}, {{-1, 2},{86,6, 1, 1,1,1,2, 2,0}}, {{ 0, 2},{86,5, 1, 1,1,1, 2, 2,0}}, {{ 1, 2},{86,6, 1, 1,1,1,2, 2,0}}, {{ 2, 2},{0, 7, 1, 1,1,21,32, 32,0}}, {{ 3, 2},{0,37, 3, 3,3,3, 3, 30,0}},
+                    {{-3, 1},{0,37, 3, 3,3,3, 3, 30,0}}, {{-2, 1},{0, 7,12, 1,1, 1,21, 32,0}}, {{-1, 1},{86,6,12, 1,1,1,1, 2,0}}, {{ 0, 1},{86,6,12, 1,1,1,77, 2,0}}, {{ 1, 1},{86,6,12, 1,1,1,1, 2,0}}, {{ 2, 1},{0, 7,12, 1,1, 1,21, 32,0}}, {{ 3, 1},{0,37, 3, 3,3,3, 3, 30,0}},
+                    {{-3, 0},{0, 0,37, 3,3,3, 3, 30,0}}, {{-2, 0},{0,87, 7, 1,1, 1,21, 32,0}}, {{-1, 0},{86,8, 6, 1,1,1,1, 2,0}}, {{ 0, 0},{86,8, 5, 1,1,1, 1, 2,0}}, {{ 1, 0},{86,8, 6, 1,1,1,1, 2,0}}, {{ 2, 0},{0,87, 7, 1,1, 1,21, 32,0}}, {{ 3, 0},{0, 0,37, 3,3,3, 3, 30,0}},
+                    {{-3,-1},{0, 0, 4, 4,4,4, 4, 40,0}}, {{-2,-1},{0, 0, 4, 4,4, 4, 4,  4,0}}, {{-1,-1},{ 0,0, 4, 4,4,4,4, 4,0}}, {{ 0,-1},{ 0,0, 4, 4,4,4, 4, 4,0}}, {{ 1,-1},{ 0,0, 4, 4,4,4,4, 4,0}}, {{ 2,-1},{0, 0, 4, 4,4, 4, 4,  4,0}}, {{ 3,-1},{0, 0, 4, 4,4,4, 4, 40,0}},
+                },
+
+            -- Orthogonal slope up (north reference).
+            [11] = {{{-3, 3},{0,0, 0,  4,4,4,4,  4,40}}, {{-2, 3},{0,0, 0,  4,4,4, 4,  4,40}}, {{-1, 3},{0, 0,0,  4,4,4,4, 4,4}}, {{ 0, 3},{0, 0,0,  4,4,4,4, 4,4}}, {{ 1, 3},{0, 0,0,  4,4,4,4, 4,4}}, {{ 2, 3},{0,0, 0,  4,4,4, 4,  4, 4}}, {{ 3, 3},{0,0, 0,  4,4,4,4,  4,40}},
+                    {{-3, 2},{0,0, 0, 37,3,3,3,  3,30}}, {{-2, 2},{0,0,87,  7,1,1, 1, 21,32}}, {{-1, 2},{0,86,8,  6,1,1,1, 1,2}}, {{ 0, 2},{0,86,8,  5,1,1,1, 1,2}}, {{ 1, 2},{0,86,8,  6,1,1,1, 1,2}}, {{ 2, 2},{0,0,87,  7,1,1, 1, 21,32}}, {{ 3, 2},{0,0, 0, 37,3,3,3,  3,30}},
+                    {{-3, 1},{0,0,37,  3,3,3,3,  3,30}}, {{-2, 1},{0,0, 7, 12,1,1, 1, 21,32}}, {{-1, 1},{0,86,6, 12,1,1,1, 1,2}}, {{ 0, 1},{0,86,6, 12,1,1,1, 1,2}}, {{ 1, 1},{0,86,6, 12,1,1,1, 1,2}}, {{ 2, 1},{0,0, 7, 12,1,1, 1, 21,32}}, {{ 3, 1},{0,0,37,  3,3,3,3,  3,30}},
+                    {{-3, 0},{0,0,37,  3,3,3,3,  3,30}}, {{-2, 0},{0,0, 7,  1,1,1,21, 32, 4}}, {{-1, 0},{0,86,6,  1,1,1,1, 2,4}}, {{ 0, 0},{0,86,5,  1,1,1,1, 2,4}}, {{ 1, 0},{0,86,6,  1,1,1,1, 2,4}}, {{ 2, 0},{0,0, 7,  1,1,1,21, 32, 4}}, {{ 3, 0},{0,0,37,  3,3,3,3,  3,30}},
+                    {{-3,-1},{0,0, 4,  4,4,4,4, 40, 0}}, {{-2,-1},{0,0, 4,  4,4,4,4,   4, 0}}, {{-1,-1},{0, 0,4,  4,4,4,4, 4,0}}, {{ 0,-1},{0, 0,4,  4,4,4,4, 4,0}}, {{ 1,-1},{0, 0,4,  4,4,4,4, 4,0}}, {{ 2,-1},{0,0, 4,  4,4,4, 4,  4, 0}}, {{ 3,-1},{0,0, 4,  4,4,4,4, 40, 0}},
+                },
+
+            -- Diagonal slope down (northwest reference).
+            [30] = {                                                                                                             {{-1, 4},{ 0, 4, 4,  4,4,4,4,   0,0}}, {{ 0, 4},{ 0,37, 3, 3,3, 3, 3, 30,0}}, {{ 1, 4},{ 0,37, 3, 3,3,3,3,  30,0}},
+                                                                                                                                 {{-1, 3},{ 0, 4, 4,  4,4,4,4,   4,0}}, {{ 0, 3},{ 0, 7, 1, 1,1,21,32, 32,0}}, {{ 1, 3},{ 0,37, 3, 3,3,3,3,   2,0}}, {{ 2, 3},{0,37,3,  3,3,3,3,  30,0}},
+                                                                                           {{-2, 2},{ 0, 4, 4, 4,4,4,4,   4,0}}, {{-1, 2},{ 0, 4, 4,  4,4,4,4,   4,0}}, {{ 0, 2},{86, 6, 1, 1,1, 1, 1,  2,0}}, {{ 1, 2},{ 0, 7,12, 1,1,1,21, 32,0}}, {{ 2, 2},{0,37,3,  3,3,3,3,   2,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 1},{0, 4,4, 4,4,4,4, 0,0}}, {{-3, 1},{0, 4,4, 4,4, 4, 4,  4,0}}, {{-2, 1},{ 0, 4, 4, 4,4,4,4,   4,0}}, {{-1, 1},{86, 5, 1,  1,1,1,1,   2,0}}, {{ 0, 1},{86, 6,12, 1,1, 1, 1,  2,0}}, {{ 1, 1},{86, 8, 6, 1,1,1,1,   2,0}}, {{ 2, 1},{0,87,7, 17,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 0},{0,37,3, 3,3,3,3, 0,0}}, {{-3, 0},{0, 7,1, 1,1,21,32, 32,0}}, {{-2, 0},{86, 6, 1, 1,1,1,1,   2,0}}, {{-1, 0},{86, 6,12,  1,1,1,1,   2,0}}, {{ 0, 0},{86, 8, 5, 1,1, 1, 1,  2,0}}, {{ 1, 0},{ 0, 0, 4, 4,4,4,4,   4,0}}, {{ 2, 0},{0, 0,4,  4,4,4,4,   4,0}}, {{ 3, 0},{0,0, 4, 4,4,4,4, 40,0}},
+                    {{-4,-1},{0,37,3, 3,3,3,3, 0,0}}, {{-3,-1},{0,37,3, 3,3, 3, 3,  2,0}}, {{-2,-1},{ 0, 7,12, 1,1,1,21, 32,0}}, {{-1,-1},{86, 8, 6,  1,1,1,1,   2,0}}, {{ 0,-1},{ 0, 0, 4, 4,4, 4, 4,  4,0}}, {{ 1,-1},{ 0, 0, 4, 4,4,4,4,   4,0}},
+                                                      {{-3,-2},{0,37,3, 3,3, 3, 3, 30,0}}, {{-2,-2},{ 0,37, 3, 3,3,3,3,   2,0}}, {{-1,-2},{ 0,87, 7, 17,1,1,21, 32,0}}, {{ 0,-2},{ 0, 0, 4, 4,4, 4, 4,  4,0}},
+                                                                                           {{-2,-3},{ 0, 0,37, 3,3,3,3,  30,0}}, {{-1,-3},{ 0, 0,37,  3,3,3,3,  30,0}}, {{ 0,-3},{ 0, 0, 4, 4,4, 4, 4, 40,0}},
+                },
+
+            -- Diagonal slope up (northwest reference).
+            [31] = {                                                                                                            {{-1, 4},{0, 0, 0,  4,4,4, 4,  4, 4}}, {{ 0, 4},{0, 0, 0, 37,3,3,3,  3, 3}}, {{ 1, 4},{0, 0,37,  3,3,3,3,  3, 3}},
+                                                                                                                                {{-1, 3},{0, 0, 0,  4,4,4, 4,  4, 4}}, {{ 0, 3},{0, 0,87,  7,1,1,1, 21,32}}, {{ 1, 3},{0, 0,37,  3,3,3,3,  3, 3}}, {{ 2, 3},{0,0,37, 3,3,3,3,   3,30}},
+                                                                                          {{-2, 2},{0, 0, 0,  4,4,4,4,  4, 4}}, {{-1, 2},{0, 0, 0,  4,4,4, 4,  4, 4}}, {{ 0, 2},{0,86, 8,  6,1,1,1,  1, 2}}, {{ 1, 2},{0, 0, 7, 12,1,1,1, 21,32}}, {{ 2, 2},{0,0,37, 3,3,3,3,   3, 3}}, {{ 3, 2},{0,0,37, 3,3,3,3, 3,30}},
+                    {{-4, 1},{0,0,0,  4,4,4,4, 4,4}}, {{-3, 1},{0,0, 0, 4,4,4,4,  4, 4}}, {{-2, 1},{0, 0, 0,  4,4,4,4,  4, 4}}, {{-1, 1},{0,86, 8,  5,1,1, 1,  1, 2}}, {{ 0, 1},{0,86, 6, 12,1,1,1,  1, 2}}, {{ 1, 1},{0,86, 6,  1,1,1,1,  1, 2}}, {{ 2, 1},{0,0, 7, 1,1,1,21, 32, 4}}, {{ 3, 1},{0,0,37, 3,3,3,3, 3,30}},
+                    {{-4, 0},{0,0,0, 37,3,3,3, 3,3}}, {{-3, 0},{0,0,87, 7,1,1,1, 21,32}}, {{-2, 0},{0,86, 8,  6,1,1,1,  1, 2}}, {{-1, 0},{0,86, 6, 12,1,1, 1,  1, 2}}, {{ 0, 0},{0,86, 5,  1,1,1,1,  1, 2}}, {{ 1, 0},{0, 0, 4,  4,4,4,4,  4, 4}}, {{ 2, 0},{0,0, 4, 4,4,4,4,   4, 4}}, {{ 3, 0},{0,0, 4, 4,4,4,4, 4,40}},
+                    {{-4,-1},{0,0,3, 37,3,3,3, 3,3}}, {{-3,-1},{0,0,37, 3,3,3,3,  3, 3}}, {{-2,-1},{0, 0, 7, 12,1,1,1, 21,32}}, {{-1,-1},{0,86, 6,  1,1,1, 1,  1, 2}}, {{ 0,-1},{0, 0, 4,  4,4,4,4,  4, 4}}, {{ 1,-1},{0, 0, 4,  4,4,4,4,  4, 4}},
+                                                      {{-3,-2},{0,0,37, 3,3,3,3,  3,30}}, {{-2,-2},{0, 0,37,  3,3,3,3,  3, 3}}, {{-1,-2},{0, 0, 7,  1,1,1,21, 32, 4}}, {{ 0,-2},{0, 0, 4,  4,4,4,4,  4, 4}},
+                                                                                          {{-2,-3},{0, 0,37,  3,3,3,3,  3,30}}, {{-1,-3},{0, 0,37,  3,3,3, 3,  3,30}}, {{ 0,-3},{0, 0, 4,  4,4,4,4,  4,40}},
+                },
+        }
 
 		local dig_lookup = {  -- Defines dig pattern, flip, and rotation for each direction.
 			[0] = {1, 0, 0}, [1] = {2, 0, 0}, [2] = {3, 0, 0}, [3] = {2, 1, -1},
@@ -738,7 +668,7 @@ local dig_tunnel = function(cdir, user, pointed_thing)
 		local flip = dig_lookup[cdir][2]
 		local rotation = dig_lookup[cdir][3]
 		run_list(dig_list, flip, rotation, user, pointed_thing)
-		region1(lighting_search_radius, user, pointed_thing)
+		-- region1(lighting_search_radius, user, pointed_thing)
 	end
 end
 
@@ -769,14 +699,18 @@ for i,img in ipairs(images) do
 				if user_config[pname].remove_refs > 0 then
 					remove_refs_on = true
 				end
-				local formspec = "size[5,5]"..
+				local clear_trees_on = false
+				if user_config[pname].clear_trees > 0 then
+					clear_trees_on = true
+				end
+				local formspec = "size[5,6]"..
 					"label[0.25,0.25;Tunnelmaker User Options]"..
-					"checkbox[0.25,0.75;continuous_updown;Continuous up/down digging;"..tostring(user_config[pname].continuous_updown).."]"..
-					"checkbox[0.25,1.25;train_mode;Train mode;"..tostring(user_config[pname].train_mode).."]"..
-					"checkbox[0.5,1.75;add_lined_tunnels;Add lined tunnels;"..tostring(user_config[pname].add_lined_tunnels).."]"..
-					"checkbox[0.5,2.25;add_embankment;Add embankment under tracks;"..tostring(user_config[pname].add_embankment).."]"..
-					"checkbox[0.25,2.75;remove_refs;Remove reference nodes;"..tostring(remove_refs_on).."]"..
-					"button_exit[2,4.5;1,0.4;exit;Exit]"
+					"dropdown[0.25,1.00;3;digging_mode;General purpose mode,Train outdoor mode,Train tunnel/bridge mode,Bike path mode;"..tostring(user_config[pname].digging_mode).."]"..
+					"checkbox[0.25,1.75;continuous_updown;Continuous up/down digging;"..tostring(user_config[pname].continuous_updown).."]"..
+					"checkbox[0.25,2.25;clear_trees;Clear tree cover above*;"..tostring(clear_trees_on).."]"..
+					"checkbox[0.25,2.75;remove_refs;Remove reference nodes*;"..tostring(remove_refs_on).."]"..
+					"button_exit[2,4.50;1,0.4;exit;Exit]"..
+					"label[0.25,5.25;"..minetest.colorize("#888","* Automatically disabled after 1 min.").."]"
 				local formspec_dm = ""
 				local dmat = ""
 				local use_desert_material = user_config[pname].use_desert_material
@@ -811,10 +745,10 @@ for i,img in ipairs(images) do
 				tunnelmaker[pname].lastpos = { x = placer:getpos().x, y = placer:getpos().y, z = placer:getpos().z }
 			-- Otherwise dig tunnel based on direction pointed and current updown direction
 			elseif pointed_thing.type=="node" then
-				-- if advtrains_track, I lower positions of pointed_thing to right below track, but keep name the same.
+				-- if advtrains_track, I lower positions of pointed_thing to right below track, but keep name the same. Same with snow cover.
 				local name = minetest.get_node(pointed_thing.under).name
 				-- if minetest.registered_nodes[name].groups.advtrains_track == 1 then
-				if string.match(name, "dtrack") then
+				if string.match(name, "dtrack") or name == "default:snow" then
 					pointed_thing.under = vector.add(pointed_thing.under, {x=0, y=-1, z=0})
 					--pointed_thing.above = vector.add(pointed_thing.above, {x=0, y=-1, z=0})  -- don't currently use this
 				end
@@ -835,32 +769,58 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		return false
 	end
 	local pname = player:get_player_name()
-	if fields.remove_refs == "true" then
+	if fields.continuous_updown == "true" then
+		user_config[pname].continuous_updown = true
+	elseif fields.continuous_updown == "false" then
+		user_config[pname].continuous_updown = false
+	elseif fields.clear_trees == "true" then
+		user_config[pname].clear_trees = remove_refs_enable_time
+	elseif fields.clear_trees == "false" then
+		user_config[pname].clear_trees = 0
+	elseif fields.remove_refs == "true" then
 		user_config[pname].remove_refs = remove_refs_enable_time
 	elseif fields.remove_refs == "false" then
 		user_config[pname].remove_refs = 0
-	elseif fields.train_mode == "true" then
-		user_config[pname].train_mode = true
-		ith = ith_config
-		add_arches = add_arches_config
-		base_coating = base_coating_config
-		add_reference_marks = add_reference_marks_config
-		add_wide_passage = add_wide_passage_config
-	elseif fields.train_mode == "false" then
-		user_config[pname].train_mode = false
-		ith = 0
-		add_arches = false
-		base_coating = false
-		add_reference_marks = false
-		add_wide_passage = false
-	elseif fields.add_embankment == "true" then user_config[pname].add_embankment = true
-	elseif fields.add_embankment == "false" then user_config[pname].add_embankment = false
-	elseif fields.add_lined_tunnels == "true" then user_config[pname].add_lined_tunnels = true
-	elseif fields.add_lined_tunnels == "false" then user_config[pname].add_lined_tunnels = false
-	elseif fields.continuous_updown == "true" then user_config[pname].continuous_updown = true
-	elseif fields.continuous_updown == "false" then user_config[pname].continuous_updown = false
-	elseif fields.lock_desert_mode == "false" then user_config[pname].lock_desert_mode = false
-	elseif fields.lock_desert_mode == "true" then user_config[pname].lock_desert_mode = true
+	elseif fields.lock_desert_mode == "false" then
+		user_config[pname].lock_desert_mode = false
+	elseif fields.lock_desert_mode == "true" then
+		user_config[pname].lock_desert_mode = true
+	elseif fields.digging_mode == "General purpose mode" then
+		user_config[pname].digging_mode = 1
+		user_config[pname].height = tunnel_height - 1
+		user_config[pname].add_arches = false
+		user_config[pname].add_lined_tunnels = false
+		user_config[pname].add_embankment = false
+		user_config[pname].add_floors = false
+		user_config[pname].add_wide_floors = false
+		user_config[pname].add_bike_ramps = false
+	elseif fields.digging_mode == "Train outdoor mode" then
+		user_config[pname].digging_mode = 2
+		user_config[pname].height = tunnel_height
+		user_config[pname].add_arches = true
+		user_config[pname].add_lined_tunnels = false
+		user_config[pname].add_embankment = true
+		user_config[pname].add_floors = true
+		user_config[pname].add_wide_floors = false
+		user_config[pname].add_bike_ramps = false
+	elseif fields.digging_mode == "Train tunnel/bridge mode" then
+		user_config[pname].digging_mode = 3
+		user_config[pname].height = tunnel_height
+		user_config[pname].add_arches = true
+		user_config[pname].add_lined_tunnels = true
+		user_config[pname].add_embankment = true
+		user_config[pname].add_floors = true
+		user_config[pname].add_wide_floors = true
+		user_config[pname].add_bike_ramps = false
+	elseif fields.digging_mode == "Bike path mode" then
+		user_config[pname].digging_mode = 4
+		user_config[pname].height = tunnel_height - 1
+		user_config[pname].add_arches = false
+		user_config[pname].add_lined_tunnels = false
+		user_config[pname].add_embankment = false
+		user_config[pname].add_floors = true
+		user_config[pname].add_wide_floors = true
+		user_config[pname].add_bike_ramps = true
 	end
 	return true
 end)
@@ -877,6 +837,15 @@ minetest.register_globalstep(function(dtime)
 				user_config[pname].remove_refs = 0
 			else
 				user_config[pname].remove_refs = rr
+			end
+		end
+		local ct = user_config[pname].clear_trees
+		if ct > 0 then
+			ct = ct - dtime
+			if ct <= 0 then
+				user_config[pname].clear_trees = 0
+			else
+				user_config[pname].clear_trees = ct
 			end
 		end
 	end
