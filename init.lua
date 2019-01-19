@@ -6,7 +6,7 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-pre-10 - 2019-01-18
+-- Version 2.0-pre-11 - 2019-01-19
 
 -- Controls for operation
 -------------------------
@@ -30,14 +30,11 @@
 -- Continuous updown digging, which allows digging up/down multiple times without resetting mode.
 local continuous_updown_default = minetest.settings:get_bool("continuous_updown_digging", false)
 
--- Train mode enables various options appropriate for trains from the advtrains mod.
-local train_mode_default = minetest.settings:get_bool("train_mode", true)
-
 -- Train tunnels can be lined with a coating.
 local add_lined_tunnels_default = minetest.settings:get_bool("add_lined_tunnels", false)
 
 -- Train track can have a user selectable embankment (gravel mound and additional base).
-local add_embankment_default = minetest.settings:get_bool("add_track_embankment", true)
+-- local add_embankment_default = minetest.settings:get_bool("add_track_embankment", true)
 
 
 -- Configuration variables
@@ -46,7 +43,7 @@ local add_embankment_default = minetest.settings:get_bool("add_track_embankment"
 local tunnel_height = (tonumber(minetest.settings:get("tunnel_height") or 5))
 
 -- Train tunnels can have "arches" along the sides.
-local add_arches_config = minetest.settings:get_bool("add_tunnel_arches", true)
+-- local add_arches_config = minetest.settings:get_bool("add_tunnel_arches", true)
 
 -- Material for coating for walls and floor (outside of desert)
 local coating_not_desert = minetest.settings:get("material_for_tunnels") or "default:stone"
@@ -73,7 +70,7 @@ local coating_desert = minetest.settings:get("material_for_desert_tunnels") or "
 local slabs_desert = minetest.settings:get("material_for_desert_slabs") or "stairs:slab_desert_stone"
 
 -- Allow to replace water in air and a transparent coating tunnels
-local add_dry_tunnels = minetest.settings:get_bool("add_dry_tunnels", true)
+-- local add_dry_tunnels = minetest.settings:get_bool("add_dry_tunnels", true)
 
 -- Material for coating for walls in the water.
 local glass_walls = minetest.settings:get("material_for_dry_tunnels") or "default:glass"
@@ -127,14 +124,15 @@ minetest.register_on_joinplayer(function(player)
 	local pname = player:get_player_name()
 	tunnelmaker[pname] = {updown = 0, lastdir = -1, lastpos = {x = 0, y = 0, z = 0}}
 	user_config[pname] = {
-		digging_mode = 2,
+		digging_mode = 2,  -- Ground level train mode
 		height = tunnel_height,
-		add_arches = add_arches_config,
-		add_lined_tunnels = add_lined_tunnels_default,
-		add_embankment = add_embankment_default,
+		add_arches = true,  -- add_arches_config,
+		add_embankment = true,  -- add_embankment_default,
+		add_refs = true,
 		add_floors = true,
-		add_wide_floors = false,
+		add_wide_floors = add_lined_tunnels_default,
 		add_bike_ramps = false,
+		add_lined_tunnels = add_lined_tunnels_default,
 		continuous_updown = continuous_updown_default,
 		lock_desert_mode = false,
 		clear_trees = 0,
@@ -355,7 +353,7 @@ region = {
 				local name = minetest.get_node(pos).name
 				-- Figure out what replacement material should be.
 				local rep_mat
-				if user_config[pname].add_floors then  -- Add reference marks.
+				if user_config[pname].add_refs then  -- Add reference marks.
 					if user_config[pname].add_embankment then
 						rep_mat = embankment
 					else
@@ -364,8 +362,8 @@ region = {
 					minetest.set_node(pos, {name = reference_marks})
 					local meta = minetest.get_meta(pos)
 					meta:set_string("replace_with", rep_mat)
-				else  -- Only fill holes.
-					if string.match(name, "water") or name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name) then
+				else  -- No refs.
+					if user_config[pname].add_floors or string.match(name, "water") or name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name) then
 						minetest.set_node(pos, {name = lining_material(user, pos)})
 					end
 				end
@@ -700,14 +698,15 @@ for i,img in ipairs(images) do
 				if user_config[pname].clear_trees > 0 then
 					clear_trees_on = true
 				end
-				local formspec = "size[5,6]"..
+				local formspec = "size[5,6.5]"..
 					"label[0.25,0.25;Tunnelmaker User Options]"..
-					"dropdown[0.25,1.00;4;digging_mode;General purpose mode,Ground level train mode,Tunnel/bridge train mode,Bike path mode;"..tostring(user_config[pname].digging_mode).."]"..
-					"checkbox[0.25,1.75;continuous_updown;Continuous up/down digging;"..tostring(user_config[pname].continuous_updown).."]"..
-					"checkbox[0.25,2.25;clear_trees;Clear tree cover above*;"..tostring(clear_trees_on).."]"..
-					"checkbox[0.25,2.75;remove_refs;Remove reference nodes*;"..tostring(remove_refs_on).."]"..
-					"button_exit[2,4.50;1,0.4;exit;Exit]"..
-					"label[0.25,5.25;"..minetest.colorize("#888","* Automatically disabled after 2 mins.").."]"
+					"dropdown[0.25,1.00;4;digging_mode;General purpose mode,Train track mode,Bike path mode;"..tostring(user_config[pname].digging_mode).."]"..
+					"checkbox[0.25,1.75;add_lined_tunnels;Lined tunnels/wide bridges;"..tostring(user_config[pname].add_lined_tunnels).."]"..
+					"checkbox[0.25,2.25;continuous_updown;Continuous up/down digging;"..tostring(user_config[pname].continuous_updown).."]"..
+					"checkbox[0.25,2.75;clear_trees;Clear tree cover above*;"..tostring(clear_trees_on).."]"..
+					"checkbox[0.25,3.25;remove_refs;Remove reference nodes*;"..tostring(remove_refs_on).."]"..
+					"button_exit[2,5.00;1,0.4;exit;Exit]"..
+					"label[0.25,5.75;"..minetest.colorize("#888","* Automatically disabled after 2 mins.").."]"
 				local formspec_dm = ""
 				local dmat = ""
 				local use_desert_material = user_config[pname].use_desert_material
@@ -721,7 +720,7 @@ for i,img in ipairs(images) do
 					else
 						dmat = "Non-desert"
 					end
-					formspec_dm = "checkbox[0.25,3.25;lock_desert_mode;Lock desert mode to: "..dmat..";"..tostring(user_config[pname].lock_desert_mode).."]"
+					formspec_dm = "checkbox[0.25,3.75;lock_desert_mode;Lock desert mode to: "..dmat..";"..tostring(user_config[pname].lock_desert_mode).."]"
 				end
 				minetest.show_formspec(pname, "tunnelmaker:form", formspec..formspec_dm)
 			else  -- Dig single node, if pointing to one
@@ -770,6 +769,18 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].continuous_updown = true
 	elseif fields.continuous_updown == "false" then
 		user_config[pname].continuous_updown = false
+	elseif fields.add_lined_tunnels == "true" then
+		user_config[pname].add_lined_tunnels = true
+		user_config[pname].add_floors = true
+		user_config[pname].add_wide_floors = true
+	elseif fields.add_lined_tunnels == "false" then
+		user_config[pname].add_lined_tunnels = false
+		if user_config[pname].digging_mode == 1 then  -- gp no floors when not lined
+			user_config[pname].add_floors = false
+		end
+		if user_config[pname].digging_mode ~= 3 then  -- bike paths always wide
+			user_config[pname].add_wide_floors = false
+		end
 	elseif fields.clear_trees == "true" then
 		user_config[pname].clear_trees = remove_refs_enable_time
 	elseif fields.clear_trees == "false" then
@@ -786,35 +797,26 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].digging_mode = 1
 		user_config[pname].height = tunnel_height - 1
 		user_config[pname].add_arches = false
-		user_config[pname].add_lined_tunnels = false
 		user_config[pname].add_embankment = false
-		user_config[pname].add_floors = false
-		user_config[pname].add_wide_floors = false
+		user_config[pname].add_refs = false
+		user_config[pname].add_floors = user_config[pname].add_lined_tunnels
+		user_config[pname].add_wide_floors = user_config[pname].add_lined_tunnels
 		user_config[pname].add_bike_ramps = false
-	elseif fields.digging_mode == "Ground level train mode" then
+	elseif fields.digging_mode == "Train track mode" then
 		user_config[pname].digging_mode = 2
 		user_config[pname].height = tunnel_height
 		user_config[pname].add_arches = true
-		user_config[pname].add_lined_tunnels = false
 		user_config[pname].add_embankment = true
+		user_config[pname].add_refs = true
 		user_config[pname].add_floors = true
-		user_config[pname].add_wide_floors = false
-		user_config[pname].add_bike_ramps = false
-	elseif fields.digging_mode == "Tunnel/bridge train mode" then
-		user_config[pname].digging_mode = 3
-		user_config[pname].height = tunnel_height
-		user_config[pname].add_arches = true
-		user_config[pname].add_lined_tunnels = true
-		user_config[pname].add_embankment = true
-		user_config[pname].add_floors = true
-		user_config[pname].add_wide_floors = true
+		user_config[pname].add_wide_floors = user_config[pname].add_lined_tunnels
 		user_config[pname].add_bike_ramps = false
 	elseif fields.digging_mode == "Bike path mode" then
-		user_config[pname].digging_mode = 4
+		user_config[pname].digging_mode = 3
 		user_config[pname].height = tunnel_height - 1
 		user_config[pname].add_arches = false
-		user_config[pname].add_lined_tunnels = false
 		user_config[pname].add_embankment = false
+		user_config[pname].add_refs = true
 		user_config[pname].add_floors = true
 		user_config[pname].add_wide_floors = true
 		user_config[pname].add_bike_ramps = true
