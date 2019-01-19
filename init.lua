@@ -6,7 +6,7 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-pre-11 - 2019-01-19
+-- Version 2.0-pre-12 - 2019-01-19
 
 -- Controls for operation
 -------------------------
@@ -399,7 +399,8 @@ region = {
 					local pos0 = vector.add(pos, {x=0, y=-1, z=0})
 					local node0 = minetest.get_node(pos0)
 					if not ((node0.name == coating_desert or node0.name == coating_not_desert) and node0.param2 == 7) and  -- Exception to match diagonal up and down digging.
-							not (name == embankment and param2 == 42) then  -- don't overwrite embankment
+							not (user_config[pname].add_embankment and ((name == embankment and param2 == 42) or name == reference_marks)) and  -- Don't overwrite embankment or refs in train mode.
+							not (user_config[pname].add_bike_ramps and name == reference_marks) then  -- Don't overwrite refs in bike mode.
 						minetest.set_node(pos, {name = lining_material(user, pos), param2 = 7})
 					end
 				else  -- Not wide. However, this makes double-wide glass when digging at water surface level.
@@ -700,11 +701,11 @@ for i,img in ipairs(images) do
 				end
 				local formspec = "size[5,6.5]"..
 					"label[0.25,0.25;Tunnelmaker User Options]"..
-					"dropdown[0.25,1.00;4;digging_mode;General purpose mode,Train track mode,Bike path mode;"..tostring(user_config[pname].digging_mode).."]"..
-					"checkbox[0.25,1.75;add_lined_tunnels;Lined tunnels/wide bridges;"..tostring(user_config[pname].add_lined_tunnels).."]"..
-					"checkbox[0.25,2.25;continuous_updown;Continuous up/down digging;"..tostring(user_config[pname].continuous_updown).."]"..
+					"dropdown[0.25,1.00;4;digging_mode;General purpose mode,Advanced trains mode,Bike path mode;"..tostring(user_config[pname].digging_mode).."]"..
+					"checkbox[0.25,1.75;add_lined_tunnels;Lined tunnels / wide bridges;"..tostring(user_config[pname].add_lined_tunnels).."]"..
+					"checkbox[0.25,2.20;continuous_updown;Continuous up/down digging;"..tostring(user_config[pname].continuous_updown).."]"..
 					"checkbox[0.25,2.75;clear_trees;Clear tree cover above*;"..tostring(clear_trees_on).."]"..
-					"checkbox[0.25,3.25;remove_refs;Remove reference nodes*;"..tostring(remove_refs_on).."]"..
+					"checkbox[0.25,3.20;remove_refs;Remove reference nodes*;"..tostring(remove_refs_on).."]"..
 					"button_exit[2,5.00;1,0.4;exit;Exit]"..
 					"label[0.25,5.75;"..minetest.colorize("#888","* Automatically disabled after 2 mins.").."]"
 				local formspec_dm = ""
@@ -802,7 +803,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].add_floors = user_config[pname].add_lined_tunnels
 		user_config[pname].add_wide_floors = user_config[pname].add_lined_tunnels
 		user_config[pname].add_bike_ramps = false
-	elseif fields.digging_mode == "Train track mode" then
+	elseif fields.digging_mode == "Advanced trains mode" then
 		user_config[pname].digging_mode = 2
 		user_config[pname].height = tunnel_height
 		user_config[pname].add_arches = true
