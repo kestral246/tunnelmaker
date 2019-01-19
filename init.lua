@@ -6,7 +6,7 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-pre-12 - 2019-01-19
+-- Version 2.0-pre-13 - 2019-01-19
 
 -- Controls for operation
 -------------------------
@@ -329,7 +329,7 @@ region = {
 				if string.match(name, "water") then
 					minetest.set_node(pos, {name = glass_walls})  -- Always line water with glass.
 				elseif user_config[pname].add_lined_tunnels then  -- Line tunnel ...
-					if not (name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name)) then  -- except for these.
+					if not (name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name) or string.match(name, "dtrack")) then  -- except for these.
 						minetest.set_node(pos, {name = lining_material(user,pos)})
 					end
 				end
