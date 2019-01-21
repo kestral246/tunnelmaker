@@ -6,7 +6,7 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-pre-15 - 2019-01-21
+-- Version 2.0-pre-16 - 2019-01-21
 --     Bike path mode now has optional support for angledstairs mod.
 
 -- Controls for operation
@@ -26,83 +26,65 @@
 -- software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>. 
 
 
--- User config defaults
------------------------
--- Continuous updown digging, which allows digging up/down multiple times without resetting mode.
-local continuous_updown_default = minetest.settings:get_bool("continuous_updown_digging", false)
+-- User config defaults (for minetest.conf)
+-------------------------------------------
+-- Initial digging mode for user config (1, 2, or 3).
+local tunnel_mode_default = tonumber(minetest.settings:get("tunnel_digging_mode") or 2)
 
 -- Train tunnels can be lined with a coating.
 local add_lined_tunnels_default = minetest.settings:get_bool("add_lined_tunnels", false)
 
--- Train track can have a user selectable embankment (gravel mound and additional base).
--- local add_embankment_default = minetest.settings:get_bool("add_track_embankment", true)
-
-
--- Configuration variables
---------------------------
--- Train tunnels can be taller than 5.
-local tunnel_height = (tonumber(minetest.settings:get("tunnel_height") or 5))
-
--- Train tunnels can have "arches" along the sides.
--- local add_arches_config = minetest.settings:get_bool("add_tunnel_arches", true)
-
--- Material for coating for walls and floor (outside of desert)
-local tunnel_material = minetest.settings:get("tunnel_material") or "default:stone"
-local bike_path_material = "default:cobble"
-local slab_not_desert = "stairs:slab_cobble"
-local angled_slab_not_desert = "angledstairs:angled_slab_left_cobble"
-local angled_stair_not_desert = "angledstairs:angled_stair_left_cobble"
-
--- Material for train track embankment
-local embankment = minetest.settings:get("material_for_track_embankment") or "default:gravel"
-
--- Material for reference marks to help laying advtrains track.
--- This should be a fairly uncommon material with a distinctive look.
--- If this is changed, old reference marks won't be able to be removed by tunnelmaker tool.
-local reference_marks = minetest.settings:get("material_for_reference_marks") or "default:stone_block"
-
--- Time that reference marks are removed when this command enabled by the user. 
-local remove_refs_enable_time = tonumber(minetest.settings:get("remove_reference_marks_timeout") or 120)
+-- Continuous updown digging, which allows digging up/down multiple times without resetting mode.
+local continuous_updown_default = minetest.settings:get_bool("continuous_updown_digging", false)
 
 -- Enable desert mode - can use different materials when in the desert. Requires Minetest 5.0+.
 -- When desert mode is enabled, user gets additional option to Lock desert mode to current state
 -- of being in desert or not. Useful to define materials used when in desert transition regions.
 local add_desert_material = minetest.settings:get_bool("add_desert_material", false)
 
--- Material for coating for walls and floor in desert.
-local tunnel_material_desert = minetest.settings:get("tunnel_material_desert") or "default:desert_stone"
+-- Can use other lights in tunnels instead of torches.
+local lighting = minetest.settings:get("tunnel_lights") or "default:torch"
+
+
+-- Configuration variables
+-- (If you'd really like some of these available to minetest.conf, request them.)
+--------------------------
+-- Tunnel height, can vary for each digging mode.
+local tunnel_height_general = 4
+local tunnel_height_train = 6
+local tunnel_height_bike = 5
+
+-- Train tunnels (only) can have "arches" along the sides.
+local add_arches_config = true
+
+-- Material for walls and floors (general and train path beyond embankment).
+local tunnel_material = "default:stone"
+local tunnel_material_desert = "default:desert_stone"
+
+-- Material for train track embankment
+local embankment = "default:gravel"
+
+-- Material for reference marks to help laying advtrains track.
+-- This should be a fairly uncommon material with a distinctive look.
+-- If this is changed, old reference marks won't be able to be removed by tunnelmaker tool.
+local reference_marks = "default:stone_block"
+
+-- Time that reference marks are removed when this command enabled by the user. 
+local remove_refs_enable_time = 120
+
+-- Material for bike paths.
+local bike_path_material = "default:cobble"
+local slab_not_desert = "stairs:slab_cobble"
+local angled_slab_not_desert = "angledstairs:angled_slab_left_cobble"
+local angled_stair_not_desert = "angledstairs:angled_stair_left_cobble"
+
 local bike_path_material_desert = "default:desert_cobble"
 local slab_desert = "stairs:slab_desert_cobble"
 local angled_slab_desert = "angledstairs:angled_slab_left_desert_cobble"
 local angled_stair_desert = "angledstairs:angled_stair_left_desert_cobble"
 
-
--- Allow to replace water in air and a transparent coating tunnels
--- local add_dry_tunnels = minetest.settings:get_bool("add_dry_tunnels", true)
-
 -- Material for coating for walls in the water.
-local glass_walls = minetest.settings:get("material_for_dry_tunnels") or "default:glass"
-
--- Can use other lights in tunnels instead of torches.
-local lighting = minetest.settings:get("tunnel_lights") or "default:torch"
--- End of configuration
-
-
--- Process config variables
----------------------------
--- Increase tunnel height, check tunnel height limits.
-if tunnel_height < 5 then
-	tunnel_height = 5
-elseif tunnel_height > 9 then
-	tunnel_height = 9
-end
-
--- Check remove refs time limit. Also used for clear tree cover time limit.
-if remove_refs_enable_time < 10 then
-	remove_refs_enable_time = 10
-elseif remove_refs_enable_time > 300 then
-	remove_refs_enable_time = 300  -- 5 minute max.
-end
+local glass_walls = "default:glass"
 
 -- Max height to clear trees and other brush, when clear tree cover enabled.
 local clear_trees_max = 30
@@ -111,13 +93,18 @@ local clear_trees_max = 30
 local add_lighting = true
 
 -- Default light spacing (appropriate for torches).
+-- Can be changed below if brighter lights are used.
 local lighting_search_radius = 1
+
+local angledstairs_exists = false
+-- End of configuration
+
 
 -- Require "tunneling" priviledge to be able to user tunnelmaker tool.
 minetest.register_privilege("tunneling", {description = "Allow use of tunnelmaker tool"})
 
 -- Define top level variable to maintain per player state
-local tunnelmaker = {}
+tunnelmaker = {}
 local user_config = {}
 
 -- Adjust light spacing if using brighter lights.
@@ -125,31 +112,76 @@ minetest.register_on_mods_loaded(function()
 	if minetest.registered_nodes[lighting] and minetest.registered_nodes[lighting].light_source > 13 then
 		lighting_search_radius = 2
 	end
+	if angledstairs ~= nil then
+		angledstairs_exists = true
+	end
 end)
 
 -- Initialize player's state when player joins
 minetest.register_on_joinplayer(function(player)
 	local pname = player:get_player_name()
 	tunnelmaker[pname] = {updown = 0, lastdir = -1, lastpos = {x = 0, y = 0, z = 0}}
-	user_config[pname] = {
-		digging_mode = 2,  -- Ground level train mode
-		height = tunnel_height,
-		add_arches = true,  -- add_arches_config,
-		add_embankment = true,  -- add_embankment_default,
-		add_refs = true,
-		add_floors = true,
-		add_wide_floors = add_lined_tunnels_default,
-		add_bike_ramps = false,
-		add_lined_tunnels = add_lined_tunnels_default,
-		continuous_updown = continuous_updown_default,
-		lock_desert_mode = false,
-		clear_trees = 0,
-		remove_refs = 0,
-		use_desert_material = add_desert_material and minetest.get_biome_data and
-			string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert"),
-		coating_not_desert = tunnel_material,
-		coating_desert = tunnel_material_desert,
-	}
+	if tunnel_mode_default == 1 then
+		user_config[pname] = {
+			digging_mode = 1,  -- General purpose mode
+			height = tunnel_height_general,
+			add_arches = false,
+			add_embankment = false,
+			add_refs = false,
+			add_floors = add_lined_tunnels_default,
+			add_wide_floors = add_lined_tunnels_default,
+			add_bike_ramps = false,
+			add_lined_tunnels = add_lined_tunnels_default,
+			continuous_updown = continuous_updown_default,
+			lock_desert_mode = false,
+			clear_trees = 0,
+			remove_refs = 0,
+			use_desert_material = add_desert_material and minetest.get_biome_data and
+				string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert"),
+			coating_not_desert = tunnel_material,
+			coating_desert = tunnel_material_desert,
+		}
+	elseif tunnel_mode_default == 2 then
+		user_config[pname] = {
+			digging_mode = 2,  -- Advanced train mode
+			height = tunnel_height_train,
+			add_arches = add_arches_config,
+			add_embankment = true,
+			add_refs = true,
+			add_floors = true,
+			add_wide_floors = add_lined_tunnels_default,
+			add_bike_ramps = false,
+			add_lined_tunnels = add_lined_tunnels_default,
+			continuous_updown = continuous_updown_default,
+			lock_desert_mode = false,
+			clear_trees = 0,
+			remove_refs = 0,
+			use_desert_material = add_desert_material and minetest.get_biome_data and
+				string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert"),
+			coating_not_desert = tunnel_material,
+			coating_desert = tunnel_material_desert,
+		}
+	else
+		user_config[pname] = {
+			digging_mode = 3,  -- Bike path mode
+			height = tunnel_height_bike,
+			add_arches = false,
+			add_embankment = false,
+			add_refs = true,
+			add_floors = true,
+			add_wide_floors = add_lined_tunnels_default,
+			add_bike_ramps = true,
+			add_lined_tunnels = add_lined_tunnels_default,
+			continuous_updown = continuous_updown_default,
+			lock_desert_mode = false,
+			clear_trees = 0,
+			remove_refs = 0,
+			use_desert_material = add_desert_material and minetest.get_biome_data and
+				string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert"),
+			coating_not_desert = bike_path_material,
+			coating_desert = bike_path_material_desert,
+		}
+	end
 end)
 
 -- Delete player's state when player leaves
@@ -294,7 +326,7 @@ region = {
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			if not minetest.is_protected(pos, user) then
 				local name = minetest.get_node(pos).name
-				if not (is_light(name) or string.match(name, "dtrack")) then
+				if not (name == "air" or is_light(name) or string.match(name, "dtrack")) then
 					minetest.set_node(pos, {name = "air"})
 				end
 			end
@@ -433,10 +465,12 @@ region = {
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
-				local lu = {[2]=1,[6]=0,[10]=3,[14]=2}  -- down only
-				local node = minetest.get_node(pos)
-				if user_config[pname].add_bike_ramps and angledstairs and
-						not ((node.name == angled_slab_desert or node.name == angled_slab_not_desert) and node.param2 == lu[dir]) then
+				local name = minetest.get_node(pos).name
+				if user_config[pname].add_bike_ramps and angledstairs_exists then
+					if not (name == angled_slab_desert or name == angled_slab_not_desert) then  -- Don't overwrite angled_slab on ref when going diagonally down.
+						region[1](x, y, z, dir, user, pointed_thing)
+					end
+				else
 					region[1](x, y, z, dir, user, pointed_thing)
 				end
 			end
@@ -446,7 +480,7 @@ region = {
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
-				if user_config[pname].add_bike_ramps and angledstairs then
+				if user_config[pname].add_bike_ramps and angledstairs_exists then
 					local lu = {[2]=3,[6]=2,[10]=1,[14]=0}  -- up only
 					if is_desert(user, pos) then
 						minetest.set_node(pos, {name = angled_slab_desert, param2 = lu[dir]})
@@ -464,7 +498,7 @@ region = {
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps then
-					if angledstairs and (dir == 2 or dir == 6 or dir == 10 or dir == 14) then
+					if angledstairs_exists and (dir == 2 or dir == 6 or dir == 10 or dir == 14) then
 						local lu = {[2]=3,[6]=2,[10]=1,[14]=0}  -- up only
 						if is_desert(user, pos) then
 							minetest.set_node(pos, {name = angled_stair_desert, param2 = lu[dir]})
@@ -504,7 +538,7 @@ region = {
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
-				if user_config[pname].add_bike_ramps and user_config[pname].add_wide_floors and angledstairs then
+				if user_config[pname].add_bike_ramps and user_config[pname].add_wide_floors and angledstairs_exists then
 					local lu = {[2]=3,[6]=2,[10]=1,[14]=0}  -- up only
 					if is_desert(user, pos) then
 						minetest.set_node(pos, {name = angled_slab_desert, param2 = lu[dir]})
@@ -521,7 +555,7 @@ region = {
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
-				if user_config[pname].add_bike_ramps and angledstairs then
+				if user_config[pname].add_bike_ramps and angledstairs_exists then
 					local lu = {[2]=1,[6]=0,[10]=3,[14]=2}  -- down only
 					if is_desert(user, pos) then
 						minetest.set_node(pos, {name = angled_slab_desert, param2 = lu[dir]})
@@ -539,7 +573,7 @@ region = {
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps then
-					if angledstairs and (dir == 2 or dir == 6 or dir == 10 or dir == 14) then
+					if angledstairs_exists and (dir == 2 or dir == 6 or dir == 10 or dir == 14) then
 						local lu = {[2]=1,[6]=0,[10]=3,[14]=2}  -- down only
 						if is_desert(user, pos) then
 							minetest.set_node(pos, {name = angled_stair_desert, param2 = lu[dir]})
@@ -563,7 +597,7 @@ region = {
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
-				if user_config[pname].add_bike_ramps and user_config[pname].add_wide_floors and angledstairs then
+				if user_config[pname].add_bike_ramps and user_config[pname].add_wide_floors and angledstairs_exists then
 					local lu = {[2]=1,[6]=0,[10]=3,[14]=2}  -- down only
 					if is_desert(user, pos) then
 						minetest.set_node(pos, {name = angled_slab_desert, param2 = lu[dir]})
@@ -709,23 +743,19 @@ local run_list = function(dir_list, f, r, dir, user, pointed_thing)
 end
 
 -- Dig tunnel based on direction given.
+	-- [9] = h + 2  (up ceiling)
+	-- [8] = h + 1 (default ceiling)
+	--
+	-- [7] = h  (default arch)
+	-- [6] = h - 1  (down arch)
+	-- [5] = 2 to h - 2 (middle repeated, hmin = 3, zero instances,)
+	-- [4] = 1   (up floor)
+	--
+	-- [3] = 0   (default floor)
+	-- [2] = -1  (default base, down floor,)
+	-- [1] = -2  (down base)
 local dig_tunnel = function(cdir, user, pointed_thing)
 	if minetest.check_player_privs(user, "tunneling") then
-
--- [9] = h + 2  (up ceiling)
--- [8] = h + 1 (default ceiling)
---
--- [7] = h  (default arch)
--- [6] = h - 1  (down arch)
--- [5] = 2 to h - 2 (middle repeated, hmin = 3, zero instances,)
--- [4] = 1   (up floor)
---
--- [3] = 0   (default floor)
--- [2] = -1  (default base, down floor,)
--- [1] = -2  (down base)
-
-		-- Floor underneath walls: I'd like it to not fill in if there is no wall right above it.
-
         local dig_patterns = {
             -- Orthogonal (north reference).
             [1] = { {{-3, 3},{0,0, 4, 4,4,4,4, 40,0}}, {{-2, 3},{0,0,4, 4,4,4,4,   4,0}}, {{-1, 3},{0, 0,4, 4,4,4,4, 4,0}}, {{ 0, 3},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 1, 3},{0, 0,4, 4,4,4,4, 4,0}}, {{ 2, 3},{0,0,4, 4,4,4,4,   4,0}}, {{ 3, 3},{0,0, 4, 4,4,4,4, 40,0}},
@@ -943,7 +973,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].lock_desert_mode = true
 	elseif fields.digging_mode == "General purpose mode" then
 		user_config[pname].digging_mode = 1
-		user_config[pname].height = tunnel_height - 1
+		user_config[pname].height = tunnel_height_general
 		user_config[pname].add_arches = false
 		user_config[pname].add_embankment = false
 		user_config[pname].add_refs = false
@@ -954,8 +984,8 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].coating_desert = tunnel_material_desert
 	elseif fields.digging_mode == "Advanced trains mode" then
 		user_config[pname].digging_mode = 2
-		user_config[pname].height = tunnel_height
-		user_config[pname].add_arches = true
+		user_config[pname].height = tunnel_height_train
+		user_config[pname].add_arches = add_arches_config
 		user_config[pname].add_embankment = true
 		user_config[pname].add_refs = true
 		user_config[pname].add_floors = true
@@ -965,7 +995,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].coating_desert = tunnel_material_desert
 	elseif fields.digging_mode == "Bike path mode" then
 		user_config[pname].digging_mode = 3
-		user_config[pname].height = tunnel_height - 1
+		user_config[pname].height = tunnel_height_bike
 		user_config[pname].add_arches = false
 		user_config[pname].add_embankment = false
 		user_config[pname].add_refs = true
