@@ -6,7 +6,8 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-pre-17 - 2019-01-21
+-- Version 2.0-beta-2 - 2019-01-23
+--     Region functions - merge functions and fix bugs.
 --     Fix bug #1, in definition of dig_patterns[11].
 --     Feature complete, moving from experimental to beta branch. Now on to validation.
 --     Config option changes WIP, they won't be permanent.
@@ -318,6 +319,12 @@ local is_light = function(name)
 	end
 end
 
+-- Lookup table to map direction to appropriate rotation for angled_stair_left nodes. 
+local astairs_lu = {
+	[-1] ={[2]=1,[6]=0,[10]=3,[14]=2},  -- down
+	[1] = {[2]=3,[6]=2,[10]=1,[14]=0}  -- up
+}
+
 local region  -- Declare so I can use these functions recursively.
 region = {
 	[0] =  -- Null.
@@ -477,35 +484,33 @@ region = {
 				end
 			end
 		end,
-	[11] =  -- Bike slope up narrow (air or angled slab).
+	[11] =  -- Bike slope up or down narrow (air or angled slab).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps and angledstairs_exists then
-					local lu = {[2]=3,[6]=2,[10]=1,[14]=0}  -- up only
 					if is_desert(user, pos) then
-						minetest.set_node(pos, {name = angled_slab_desert, param2 = lu[dir]})
+						minetest.set_node(pos, {name = angled_slab_desert, param2 = astairs_lu[dir.vert][dir.horiz]})
 					else
-						minetest.set_node(pos, {name = angled_slab_not_desert, param2 = lu[dir]})
+						minetest.set_node(pos, {name = angled_slab_not_desert, param2 = astairs_lu[dir.virt][dir.horiz]})
 					end
 				else
 					region[1](x, y, z, dir, user, pointed_thing)
 				end
 			end
 		end,
-	[12] =  -- Bike slope up narrow (slab or angled stair).
+	[12] =  -- Bike slope up or down narrow (slab or angled stair).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps then
-					if angledstairs_exists and (dir == 2 or dir == 6 or dir == 10 or dir == 14) then
-						local lu = {[2]=3,[6]=2,[10]=1,[14]=0}  -- up only
+					if angledstairs_exists and math.fmod(dir.horiz, 4) == 2 then  -- diagonal slope
 						if is_desert(user, pos) then
-							minetest.set_node(pos, {name = angled_stair_desert, param2 = lu[dir]})
+							minetest.set_node(pos, {name = angled_stair_desert, param2 = astairs_lu[dir.vert][dir.horiz]})
 						else
-							minetest.set_node(pos, {name = angled_stair_not_desert, param2 = lu[dir]})
+							minetest.set_node(pos, {name = angled_stair_not_desert, param2 = astairs_lu[dir.vert][dir.horiz]})
 						end
 					else  -- no angledstairs
 						if is_desert(user, pos) then
@@ -535,76 +540,16 @@ region = {
 				end
 			end
 		end,
-	[14] =  -- Bike slope wide up (air or angled slab).
+	[14] =  -- Bike slope wide up or down (air or angled slab).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps and user_config[pname].add_wide_floors and angledstairs_exists then
-					local lu = {[2]=3,[6]=2,[10]=1,[14]=0}  -- up only
 					if is_desert(user, pos) then
-						minetest.set_node(pos, {name = angled_slab_desert, param2 = lu[dir]})
+						minetest.set_node(pos, {name = angled_slab_desert, param2 = astairs_lu[dir.vert][dir.horiz]})
 					else
-						minetest.set_node(pos, {name = angled_slab_not_desert, param2 = lu[dir]})
-					end
-				else
-					region[1](x, y, z, dir, user, pointed_thing)
-				end
-			end
-		end,
-	[15] =  -- Bike slope down narrow (air or angled slab).
-		function(x, y, z, dir, user, pointed_thing)
-			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
-				local pname = user:get_player_name()
-				if user_config[pname].add_bike_ramps and angledstairs_exists then
-					local lu = {[2]=1,[6]=0,[10]=3,[14]=2}  -- down only
-					if is_desert(user, pos) then
-						minetest.set_node(pos, {name = angled_slab_desert, param2 = lu[dir]})
-					else
-						minetest.set_node(pos, {name = angled_slab_not_desert, param2 = lu[dir]})
-					end
-				else
-					region[1](x, y, z, dir, user, pointed_thing)
-				end
-			end
-		end,
-	[16] =  -- Bike slope down narrow (slab or angled stair).
-		function(x, y, z, dir, user, pointed_thing)
-			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
-				local pname = user:get_player_name()
-				if user_config[pname].add_bike_ramps then
-					if angledstairs_exists and (dir == 2 or dir == 6 or dir == 10 or dir == 14) then
-						local lu = {[2]=1,[6]=0,[10]=3,[14]=2}  -- down only
-						if is_desert(user, pos) then
-							minetest.set_node(pos, {name = angled_stair_desert, param2 = lu[dir]})
-						else
-							minetest.set_node(pos, {name = angled_stair_not_desert, param2 = lu[dir]})
-						end
-					else  -- no angledstairs
-						if is_desert(user, pos) then
-							minetest.set_node(pos, {name = slab_desert, param2 = 2})
-						else
-							minetest.set_node(pos, {name = slab_not_desert, param2 = 2})
-						end
-					end
-				else
-					region[1](x, y, z, dir, user, pointed_thing)
-				end
-			end
-		end,
-	[17] =  -- Bike slope wide down (air or angled slab).
-		function(x, y, z, dir, user, pointed_thing)
-			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
-				local pname = user:get_player_name()
-				if user_config[pname].add_bike_ramps and user_config[pname].add_wide_floors and angledstairs_exists then
-					local lu = {[2]=1,[6]=0,[10]=3,[14]=2}  -- down only
-					if is_desert(user, pos) then
-						minetest.set_node(pos, {name = angled_slab_desert, param2 = lu[dir]})
-					else
-						minetest.set_node(pos, {name = angled_slab_not_desert, param2 = lu[dir]})
+						minetest.set_node(pos, {name = angled_slab_not_desert, param2 = astairs_lu[dir.vert][dir.horiz]})
 					end
 				else
 					region[1](x, y, z, dir, user, pointed_thing)
@@ -617,9 +562,8 @@ region = {
 			if not minetest.is_protected(pos, user) then
 				local pname = user:get_player_name()
 				local node = minetest.get_node(pos)
-				if not user_config[pname].add_bike_ramps or (user_config[pname].add_bike_ramps and
-						not (node.name == slab_not_desert and node.param2 == 2) or
-						(node.name == slab_desert and node.param2 == 2)) then
+				if not user_config[pname].add_bike_ramps or
+						(user_config[pname].add_bike_ramps and not ((node.name == slab_not_desert or node.name == slab_desert) and node.param2 == 2)) then
 					region[1](x, y, z, dir, user, pointed_thing)
 				end
 			end
@@ -777,19 +721,19 @@ local dig_tunnel = function(cdir, user, pointed_thing)
 
             -- Diagonal (northwest reference).
             [3] = {                                                                                                             {{-1, 4},{0, 0, 4, 4,4,4, 4, 40,0}}, {{ 0, 4},{0, 0,37, 3,3,3,3,  30,0}}, {{ 1, 4},{0, 0,37, 3,3,3,3,  30,0}},
-                                                                                           {{-2, 3},{0, 0, 4,  4,4,4, 4,  4,0}}, {{-1, 3},{0, 0, 4, 4,4,4, 4,  4,0}}, {{ 0, 3},{0, 0, 7, 1,1,1,21, 32,0}}, {{ 1, 3},{0, 0,37, 3,3,3,3,   2,0}}, {{ 2, 3},{0,0,37,  3,3,3,3,  30,0}},
-                                                       {{-3, 2},{0,0, 4, 4,4, 4, 4, 4,0}}, {{-2, 2},{0, 0, 4,  4,4,4, 4,  4,0}}, {{-1, 2},{0, 0, 4, 4,4,4, 4,  4,0}}, {{ 0, 2},{0,86, 6, 1,1,1,1,   2,0}}, {{ 1, 2},{0, 0, 7, 1,1,1,21, 32,0}}, {{ 2, 2},{0,0,37,  3,3,3,3,   2,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
-                    {{-4, 1},{0,0, 4, 4,4,4,4, 40,0}}, {{-3, 1},{0,0, 4, 4,4,4,4,   4,0}}, {{-2, 1},{0, 0, 4,  4,4,4, 4,  4,0}}, {{-1, 1},{0,86, 5, 1,1,1,77,  2,0}}, {{ 0, 1},{0,86, 6, 1,1,1,1,   2,0}}, {{ 1, 1},{0,86, 6,10,1,1,1,   2,0}}, {{ 2, 1},{0,0, 7, 19,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
-                    {{-4, 0},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 0},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 0},{0,86, 6,  1,1,1, 1,  2,0}}, {{-1, 0},{0,86, 6, 1,1,1, 1,  2,0}}, {{ 0, 0},{0,86, 5,10,1,1,1,   2,0}}, {{ 1, 0},{0, 0, 4, 4,4,4,4,   4,0}}, {{ 2, 0},{0,0, 4,  4,4,4,4,   4,0}}, {{ 3, 0},{0,0, 4, 4,4,4,4, 40,0}},
-                    {{-4,-1},{0,0,37, 3,3,3,3, 30,0}}, {{-3,-1},{0,0,37, 3,3,3,3,   2,0}}, {{-2,-1},{0, 0, 7, 19,1,1,21, 32,0}}, {{-1,-1},{0,86, 6,10,1,1, 1,  2,0}}, {{ 0,-1},{0, 0, 4, 4,4,4,4,   4,0}}, {{ 1,-1},{0, 0, 4, 4,4,4,4,   4,0}},
-                                                       {{-3,-2},{0,0,37, 3,3,3,3,  30,0}}, {{-2,-2},{0, 0,37,  3,3,3, 3,  2,0}}, {{-1,-2},{0, 0, 7,19,1,1,21, 32,0}}, {{ 0,-2},{0, 0, 4, 4,4,4,4,   4,0}},
-                                                                                           {{-2,-3},{0, 0,37,  3,3,3, 3, 30,0}}, {{-1,-3},{0, 0,37, 3,3,3, 3, 30,0}}, {{ 0,-3},{0, 0, 4, 4,4,4,4,  40,0}},
+                                                                                           {{-2, 3},{0, 0, 4, 4,4,4, 4,  4,0}}, {{-1, 3},{0, 0, 4, 4,4,4, 4,  4,0}}, {{ 0, 3},{0, 0, 7, 1,1,1,21, 32,0}}, {{ 1, 3},{0, 0,37, 3,3,3,3,   2,0}}, {{ 2, 3},{0,0,37,  3,3,3,3,  30,0}},
+                                                       {{-3, 2},{0,0, 4, 4,4, 4, 4, 4,0}}, {{-2, 2},{0, 0, 4, 4,4,4, 4,  4,0}}, {{-1, 2},{0, 0, 4, 4,4,4, 4,  4,0}}, {{ 0, 2},{0,86, 6, 1,1,1,1,   2,0}}, {{ 1, 2},{0, 0, 7, 1,1,1,21, 32,0}}, {{ 2, 2},{0,0,37,  3,3,3,3,   2,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 1},{0,0, 4, 4,4,4,4, 40,0}}, {{-3, 1},{0,0, 4, 4,4,4,4,   4,0}}, {{-2, 1},{0, 0, 4, 4,4,4, 4,  4,0}}, {{-1, 1},{0,86, 5, 1,1,1,77,  2,0}}, {{ 0, 1},{0,86, 6, 1,1,1,1,   2,0}}, {{ 1, 1},{0,86, 6,10,1,1,1,   2,0}}, {{ 2, 1},{0,0, 7, 19,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 0},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 0},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 0},{0,86, 6, 1,1,1, 1,  2,0}}, {{-1, 0},{0,86, 6, 1,1,1, 1,  2,0}}, {{ 0, 0},{0,86, 5,10,1,1,1,   2,0}}, {{ 1, 0},{0, 0, 4, 4,4,4,4,   4,0}}, {{ 2, 0},{0,0, 4,  4,4,4,4,   4,0}}, {{ 3, 0},{0,0, 4, 4,4,4,4, 40,0}},
+                    {{-4,-1},{0,0,37, 3,3,3,3, 30,0}}, {{-3,-1},{0,0,37, 3,3,3,3,   2,0}}, {{-2,-1},{0, 0, 7, 1,1,1,21, 32,0}}, {{-1,-1},{0,86, 6,10,1,1, 1,  2,0}}, {{ 0,-1},{0, 0, 4, 4,4,4,4,   4,0}}, {{ 1,-1},{0, 0, 4, 4,4,4,4,   4,0}},
+                                                       {{-3,-2},{0,0,37, 3,3,3,3,  30,0}}, {{-2,-2},{0, 0,37, 3,3,3, 3,  2,0}}, {{-1,-2},{0, 0, 7,19,1,1,21, 32,0}}, {{ 0,-2},{0, 0, 4, 4,4,4,4,   4,0}},
+                                                                                           {{-2,-3},{0, 0,37, 3,3,3, 3, 30,0}}, {{-1,-3},{0, 0,37, 3,3,3, 3, 30,0}}, {{ 0,-3},{0, 0, 4, 4,4,4,4,  40,0}},
                 },
 
             -- Orthogonal slope down (north reference).
             [10] = {{{-3, 3},{0, 4, 4, 4,4,4,40,  0,0}}, {{-2, 3},{0, 4, 4, 4,4, 4, 4,  0,0}}, {{-1, 3},{ 0,4, 4, 4,4,4,4, 0,0}}, {{ 0, 3},{ 0,4, 4, 4,4,4, 4, 0,0}}, {{ 1, 3},{ 0,4, 4, 4,4,4,4, 0,0}}, {{ 2, 3},{0, 4, 4, 4,4, 4, 4,  0,0}}, {{ 3, 3},{0, 4, 4, 4,4,4,40,  0,0}},
                     {{-3, 2},{0,37, 3, 3,3,3, 3, 30,0}}, {{-2, 2},{0, 7, 1, 1,1,21,32, 32,0}}, {{-1, 2},{86,6, 1, 1,1,1,2, 2,0}}, {{ 0, 2},{86,5, 1, 1,1,1, 2, 2,0}}, {{ 1, 2},{86,6, 1, 1,1,1,2, 2,0}}, {{ 2, 2},{0, 7, 1, 1,1,21,32, 32,0}}, {{ 3, 2},{0,37, 3, 3,3,3, 3, 30,0}},
-                    {{-3, 1},{0,37, 3, 3,3,3, 3, 30,0}}, {{-2, 1},{0, 7,13, 1,1, 1,21, 32,0}}, {{-1, 1},{86,6,16, 1,1,1,1, 2,0}}, {{ 0, 1},{86,6,16, 1,1,1,77, 2,0}}, {{ 1, 1},{86,6,16, 1,1,1,1, 2,0}}, {{ 2, 1},{0, 7,13, 1,1, 1,21, 32,0}}, {{ 3, 1},{0,37, 3, 3,3,3, 3, 30,0}},
+                    {{-3, 1},{0,37, 3, 3,3,3, 3, 30,0}}, {{-2, 1},{0, 7,13, 1,1, 1,21, 32,0}}, {{-1, 1},{86,6,12, 1,1,1,1, 2,0}}, {{ 0, 1},{86,6,12, 1,1,1,77, 2,0}}, {{ 1, 1},{86,6,12, 1,1,1,1, 2,0}}, {{ 2, 1},{0, 7,13, 1,1, 1,21, 32,0}}, {{ 3, 1},{0,37, 3, 3,3,3, 3, 30,0}},
                     {{-3, 0},{0, 0,37, 3,3,3, 3, 30,0}}, {{-2, 0},{0,87, 7, 1,1, 1,21, 32,0}}, {{-1, 0},{86,8, 6, 1,1,1,1, 2,0}}, {{ 0, 0},{86,8, 5, 1,1,1, 1, 2,0}}, {{ 1, 0},{86,8, 6, 1,1,1,1, 2,0}}, {{ 2, 0},{0,87, 7, 1,1, 1,21, 32,0}}, {{ 3, 0},{0, 0,37, 3,3,3, 3, 30,0}},
                     {{-3,-1},{0, 0, 4, 4,4,4, 4, 40,0}}, {{-2,-1},{0, 0, 4, 4,4, 4, 4,  4,0}}, {{-1,-1},{ 0,0, 4, 4,4,4,4, 4,0}}, {{ 0,-1},{ 0,0, 4, 4,4,4, 4, 4,0}}, {{ 1,-1},{ 0,0, 4, 4,4,4,4, 4,0}}, {{ 2,-1},{0, 0, 4, 4,4, 4, 4,  4,0}}, {{ 3,-1},{0, 0, 4, 4,4,4, 4, 40,0}},
                 },
@@ -805,9 +749,9 @@ local dig_tunnel = function(cdir, user, pointed_thing)
             -- Diagonal slope down (northwest reference).
             [30] = {                                                                                                             {{-1, 4},{ 0, 4, 4,  4,4,4,4,   0,0}}, {{ 0, 4},{ 0,37, 3, 3,3, 3, 3, 30,0}}, {{ 1, 4},{ 0,37, 3, 3,3,3,3,  30,0}},
                                                                                                                                  {{-1, 3},{ 0, 4, 4,  4,4,4,4,   4,0}}, {{ 0, 3},{ 0, 7, 1, 1,1,21,32, 32,0}}, {{ 1, 3},{ 0,37, 3, 3,3,3,3,   2,0}}, {{ 2, 3},{0,37,3,  3,3,3,3,  30,0}},
-                                                                                           {{-2, 2},{ 0, 4, 4, 4,4,4,4,   4,0}}, {{-1, 2},{ 0, 4, 4,  4,4,4,4,   4,0}}, {{ 0, 2},{86, 6,17, 1,1, 1, 1,  2,0}}, {{ 1, 2},{ 0, 7,13, 1,1,1,21, 32,0}}, {{ 2, 2},{0,37,3,  3,3,3,3,   2,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
-                    {{-4, 1},{0, 4,4, 4,4,4,4, 0,0}}, {{-3, 1},{0, 4,4, 4,4, 4, 4,  4,0}}, {{-2, 1},{ 0, 4, 4, 4,4,4,4,   4,0}}, {{-1, 1},{86, 5,15,  1,1,1,1,   2,0}}, {{ 0, 1},{86, 6,16, 1,1, 1, 1,  2,0}}, {{ 1, 1},{86, 8, 6,10,1,1,1,   2,0}}, {{ 2, 1},{0,87,7, 19,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
-                    {{-4, 0},{0,37,3, 3,3,3,3, 0,0}}, {{-3, 0},{0, 7,1, 1,1,21,32, 32,0}}, {{-2, 0},{86, 6,17, 1,1,1,1,   2,0}}, {{-1, 0},{86, 6,16,  1,1,1,1,   2,0}}, {{ 0, 0},{86, 8, 5,10,1, 1, 1,  2,0}}, {{ 1, 0},{ 0, 0, 4, 4,4,4,4,   4,0}}, {{ 2, 0},{0, 0,4,  4,4,4,4,   4,0}}, {{ 3, 0},{0,0, 4, 4,4,4,4, 40,0}},
+                                                                                           {{-2, 2},{ 0, 4, 4, 4,4,4,4,   4,0}}, {{-1, 2},{ 0, 4, 4,  4,4,4,4,   4,0}}, {{ 0, 2},{86, 6,14, 1,1, 1, 1,  2,0}}, {{ 1, 2},{ 0, 7,13, 1,1,1,21, 32,0}}, {{ 2, 2},{0,37,3,  3,3,3,3,   2,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 1},{0, 4,4, 4,4,4,4, 0,0}}, {{-3, 1},{0, 4,4, 4,4, 4, 4,  4,0}}, {{-2, 1},{ 0, 4, 4, 4,4,4,4,   4,0}}, {{-1, 1},{86, 5,11,  1,1,1,1,   2,0}}, {{ 0, 1},{86, 6,12, 1,1, 1, 1,  2,0}}, {{ 1, 1},{86, 8, 6,10,1,1,1,   2,0}}, {{ 2, 1},{0,87,7, 19,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 0},{0,37,3, 3,3,3,3, 0,0}}, {{-3, 0},{0, 7,1, 1,1,21,32, 32,0}}, {{-2, 0},{86, 6,14, 1,1,1,1,   2,0}}, {{-1, 0},{86, 6,12,  1,1,1,1,   2,0}}, {{ 0, 0},{86, 8, 5,10,1, 1, 1,  2,0}}, {{ 1, 0},{ 0, 0, 4, 4,4,4,4,   4,0}}, {{ 2, 0},{0, 0,4,  4,4,4,4,   4,0}}, {{ 3, 0},{0,0, 4, 4,4,4,4, 40,0}},
                     {{-4,-1},{0,37,3, 3,3,3,3, 0,0}}, {{-3,-1},{0,37,3, 3,3, 3, 3,  2,0}}, {{-2,-1},{ 0, 7,13, 1,1,1,21, 32,0}}, {{-1,-1},{86, 8, 6, 10,1,1,1,   2,0}}, {{ 0,-1},{ 0, 0, 4, 4,4, 4, 4,  4,0}}, {{ 1,-1},{ 0, 0, 4, 4,4,4,4,   4,0}},
                                                       {{-3,-2},{0,37,3, 3,3, 3, 3, 30,0}}, {{-2,-2},{ 0,37, 3, 3,3,3,3,   2,0}}, {{-1,-2},{ 0,87, 7, 19,1,1,21, 32,0}}, {{ 0,-2},{ 0, 0, 4, 4,4, 4, 4,  4,0}},
                                                                                            {{-2,-3},{ 0, 0,37, 3,3,3,3,  30,0}}, {{-1,-3},{ 0, 0,37,  3,3,3,3,  30,0}}, {{ 0,-3},{ 0, 0, 4, 4,4, 4, 4, 40,0}},
@@ -836,11 +780,18 @@ local dig_tunnel = function(cdir, user, pointed_thing)
 			[28] = {10, 1, 0}, [29] = {30, 2, 0}, [30] = {10, 0, 1}, [31] = {30, -1, 0}
 		}
 
-		local dir = cdir
+		-- Pass horizontal and vertical directions to region functions.
+		-- Horizontal needed for angledstairs nodes, vertical should help combine functions.
+		local dir = {}
 		if cdir >= 24 then
-			dir = (cdir - 24) * 2
+			dir.horiz = (cdir - 24) * 2
+			dir.vert = -1
 		elseif cdir >= 16 then
-			dir = (cdir - 16) * 2
+			dir.horiz = (cdir - 16) * 2
+			dir.vert = 1
+		else
+			dir.horiz = cdir
+			dir.vert = 0
 		end
 
 		local dig_list = dig_patterns[dig_lookup[cdir][1]]
