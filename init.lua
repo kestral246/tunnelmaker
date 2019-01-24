@@ -6,7 +6,8 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-beta-5 - 2019-01-24
+-- Version 2.0-beta-6 - 2019-01-24
+--     Add silver_sandstone.
 --     Add back minetest 4.x compatibility.
 --     Fix knight direction so doesn't remove diagonal down steps.
 --       All slopes need to have one same direction level dig at top and bottom before turning.
@@ -353,11 +354,13 @@ region = {
 					if not (name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name)) then  -- except for these.
 						minetest.set_node(pos, {name = lining_material(user, pos)})
 					end
-				else  -- Don't line tunnel, but convert different sands to sandstone and gravel to cobble.
-					if string.match(name, "default:sand") or string.match(name, "default:silver_sand") then
+				else  -- Don't line tunnel, but convert sand to sandstone and gravel to cobble.
+					if string.match(name, "default:sand") then
 						minetest.set_node(pos, {name = "default:sandstone"})
 					elseif string.match(name, "default:desert_sand") then
 						minetest.set_node(pos, {name = "default:desert_sandstone"})
+					elseif string.match(name, "default:silver_sand") then
+						minetest.set_node(pos, {name = "default:silver_sandstone"})
 					elseif string.match(name, "default:gravel") then
 						minetest.set_node(pos, {name = "default:cobble"})
 					end
