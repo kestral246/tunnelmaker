@@ -6,7 +6,10 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-beta-4 - 2019-01-23
+-- Version 2.0-beta-5 - 2019-01-24
+--     Add back minetest 4.x compatibility.
+--     Fix knight direction so doesn't remove diagonal down steps.
+--       All slopes need to have one same direction level dig at top and bottom before turning.
 --     First pass verification of water tunnels -- fixed several bugs. Some minor issues need more review.
 --     Fix bug #1, in definition of dig_patterns[11].
 --     Feature complete, moving from experimental to beta branch. Now on to validation.
@@ -95,11 +98,19 @@ local clear_trees_max = 30
 -- Lights are placed in tunnel ceilings to light the way.
 local add_lighting = true
 
--- Default light spacing (appropriate for torches).
--- Can be changed below if brighter lights are used.
+-- Light spacing: 1 for default:torch, 2 for brighter lights like default:mese_post_light.
+-- Any mods with lights will have to be added to depends to make sure they're found here.
+-- Originally I used minetest.register_on_mods_loaded, but that's only a 5.0 feature.
 local lighting_search_radius = 1
+if minetest.registered_nodes[lighting] and minetest.registered_nodes[lighting].light_source > 13 then
+	lighting_search_radius = 2
+end
 
+-- Angledstairs mod gives much nicer bike path diagonal slopes.
 local angledstairs_exists = false
+if angledstairs ~= nil then
+	angledstairs_exists = true
+end
 -- End of configuration
 
 
@@ -109,16 +120,6 @@ minetest.register_privilege("tunneling", {description = "Allow use of tunnelmake
 -- Define top level variable to maintain per player state
 tunnelmaker = {}
 local user_config = {}
-
--- Adjust light spacing if using brighter lights.
-minetest.register_on_mods_loaded(function()
-	if minetest.registered_nodes[lighting] and minetest.registered_nodes[lighting].light_source > 13 then
-		lighting_search_radius = 2
-	end
-	if angledstairs ~= nil then
-		angledstairs_exists = true
-	end
-end)
 
 -- Initialize player's state when player joins
 minetest.register_on_joinplayer(function(player)
@@ -565,7 +566,9 @@ region = {
 				local pname = user:get_player_name()
 				local node = minetest.get_node(pos)
 				if not user_config[pname].add_bike_ramps or
-						(user_config[pname].add_bike_ramps and not ((node.name == slab_not_desert or node.name == slab_desert) and node.param2 == 2)) then
+						(user_config[pname].add_bike_ramps and
+						not ((node.name == slab_not_desert or node.name == slab_desert) and node.param2 == 2) and
+						not (node.name == angled_slab_not_desert or node.name == angled_slab_desert)) then
 					region[1](x, y, z, dir, user, pointed_thing)
 				end
 			end
@@ -714,11 +717,11 @@ local dig_tunnel = function(cdir, user, pointed_thing)
                 },
 
             -- Knight move (north-northwest reference).
-            [2] = { {{-4, 3},{0,0, 4, 4,4,4,4, 40,0}}, {{-3, 3},{0,0, 4, 4,4,4, 4,  4,0}}, {{-2, 3},{0, 0,4, 4,4,4, 4,  4,0}}, {{-1, 3},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 0, 3},{0, 0,4, 4,4,4,4, 4,0}}, {{ 1, 3},{0, 0,4, 4,4,4, 4,  4,0}}, {{ 2, 3},{0,0,37, 3,3,3, 3, 30,0}},
-                    {{-4, 2},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 2},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 2},{0,86,6, 1,1,1, 1,  2,0}}, {{-1, 2},{0,86,5, 1,1,1, 1, 2,0}}, {{ 0, 2},{0,86,6, 1,1,1,1, 2,0}}, {{ 1, 2},{0, 0,7, 1,1,1,21, 32,0}}, {{ 2, 2},{0,0,37, 3,3,3, 3,  3,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
-                    {{-4, 1},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 1},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 1},{0,86,6, 1,1,1, 1,  2,0}}, {{-1, 1},{0,86,6, 1,1,1,77, 2,0}}, {{ 0, 1},{0,86,6, 1,1,1,1, 2,0}}, {{ 1, 1},{0,86,6, 1,1,1, 1,  2,0}}, {{ 2, 1},{0,0, 7, 1,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
-                    {{-4, 0},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 0},{0,0,37, 3,3,3, 3,  3,0}}, {{-2, 0},{0, 0,7, 1,1,1,21, 32,0}}, {{-1, 0},{0,86,6, 1,1,1, 1, 2,0}}, {{ 0, 0},{0,86,5, 1,1,1,1, 2,0}}, {{ 1, 0},{0,86,6, 1,1,1, 1,  2,0}}, {{ 2, 0},{0,0, 7, 1,1,1,21, 32,0}}, {{ 3, 0},{0,0,37, 3,3,3,3, 30,0}},
-                                                       {{-3,-1},{0,0,37, 3,3,3, 3, 30,0}}, {{-2,-1},{0, 0,4, 4,4,4, 4,  4,0}}, {{-1,-1},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 0,-1},{0, 0,4, 4,4,4,4, 4,0}}, {{ 1,-1},{0, 0,4, 4,4,4, 4,  4,0}}, {{ 2,-1},{0,0, 4, 4,4,4, 4,  4,0}}, {{ 3,-1},{0,0, 4, 4,4,4,4, 40,0}},
+            [2] = { {{-4, 3},{0,0, 4, 4,4,4,4, 40,0}}, {{-3, 3},{0,0, 4, 4,4,4, 4,  4,0}}, {{-2, 3},{0, 0,4, 4,4,4, 4,  4,0}}, {{-1, 3},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 0, 3},{0, 0,4, 4,4,4,4, 4,0}}, {{ 1, 3},{0, 0,4, 4,4,4, 4,  4,0}}, {{ 2, 3},{0,0,37,  3,3,3, 3, 30,0}},
+                    {{-4, 2},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 2},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 2},{0,86,6, 1,1,1, 1,  2,0}}, {{-1, 2},{0,86,5, 1,1,1, 1, 2,0}}, {{ 0, 2},{0,86,6, 1,1,1,1, 2,0}}, {{ 1, 2},{0, 0,7, 1,1,1,21, 32,0}}, {{ 2, 2},{0,0,37,  3,3,3, 3,  3,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 1},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 1},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 1},{0,86,6, 1,1,1, 1,  2,0}}, {{-1, 1},{0,86,6, 1,1,1,77, 2,0}}, {{ 0, 1},{0,86,6, 1,1,1,1, 2,0}}, {{ 1, 1},{0,86,6, 1,1,1, 1,  2,0}}, {{ 2, 1},{0,0, 7,  1,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 0},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 0},{0,0,37, 3,3,3, 3,  3,0}}, {{-2, 0},{0, 0,7, 1,1,1,21, 32,0}}, {{-1, 0},{0,86,6, 1,1,1, 1, 2,0}}, {{ 0, 0},{0,86,5, 1,1,1,1, 2,0}}, {{ 1, 0},{0,86,6, 1,1,1, 1,  2,0}}, {{ 2, 0},{0,0, 7, 19,1,1,21, 32,0}}, {{ 3, 0},{0,0,37, 3,3,3,3, 30,0}},
+                                                       {{-3,-1},{0,0,37, 3,3,3, 3, 30,0}}, {{-2,-1},{0, 0,4, 4,4,4, 4,  4,0}}, {{-1,-1},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 0,-1},{0, 0,4, 4,4,4,4, 4,0}}, {{ 1,-1},{0, 0,4, 4,4,4, 4,  4,0}}, {{ 2,-1},{0,0, 4,  4,4,4, 4,  4,0}}, {{ 3,-1},{0,0, 4, 4,4,4,4, 40,0}},
                 },
 
             -- Diagonal (northwest reference).
