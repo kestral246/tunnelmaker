@@ -11,7 +11,7 @@ Features
 --------
 - Create paths, bridges, and tunnels in all sixteen possible advtrains track directions with one click.
 - Also digs up or down in the eight possible advtrains slope track directions.
-- Digging mode and options can be set using new user config menu.
+- Digging mode and options can be set using new User Options menu.
 - Supports Advanced trains mod with gravel embankment, arched and optionally lined tunnels, and two widths of bridges.
 - Supports Bike mod with two widths of cobblestone pathways and bridges, along with unlined tunnels.
 - Supports general excavation with unlined and lined tunnels.
@@ -26,7 +26,7 @@ Features
 Controls
 --------
 - **Left-click:** Super dig one node. One click digs any node (non-repeating) and places it in player's inventory. However, it can't be used to pick up dropped items.
-- **Shift-left-click:** Bring up User Config menu (see below).
+- **Shift-left-click:** Bring up User Options menu (see below).
 - **Right-click:** Dig tunnel in direction player pointed. Note that this won't place any of the dug nodes in player's inventory.
 - **Shift-right-click:** Cycle through vertical digging modes, up, down, and horizontal.
 
@@ -53,15 +53,15 @@ Digging for slopes
 - Point player in desired digging direction.
 - Hold sneak key (shift on pc) and right-click mouse to select digging mode.  Inventory icon will cycle through possible modes with each click:  'U' for digging up, 'D' for digging down, and no letter for default horizontal.
 - Release sneak key and right-click mouse to dig tunnel.
-- User config option whether to reset each time or not.
+- User option whether to reset each time or not.
 
 ![Tunnelmaker Icons](images/icons.png "Tunnelmaker Icons")
 
-User Config menu
+User Options menu
 ----------------
 Use shift-left-click to bring up this menu.
 
-![Tunnelmaker User Config](images/user_config.png "Tunnelmaker User Config")
+![Tunnelmaker User Options](images/user_config.png "Tunnelmaker User Options")
 
 Descriptions of all the options:
 

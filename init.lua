@@ -58,7 +58,7 @@ local lighting = minetest.settings:get("tunnel_lights") or "default:torch"
 --------------------------
 -- Tunnel height, can vary for each digging mode.
 local tunnel_height_general = 4
-local tunnel_height_train = 6
+local tunnel_height_train = 5  -- Keep consistent with version 1 for now.
 local tunnel_height_bike = 5
 
 -- Train tunnels (only) can have "arches" along the sides.
