@@ -1,0 +1,23 @@
+# This file contains settings of tunnelmaker that can be changed in
+# minetest.conf
+
+#    Default for digging mode in User config menu.
+#    (default = 2)
+tunnel_digging_mode (Tunnel digging mode) int 2 0
+
+#    Default for width/lined tunnels option in User config menu.
+#    (default = false)
+add_lined_tunnels (Add lined tunnels) bool false
+
+#    Default for up/down digging option in User config menu.
+#    (default = false)
+continuous_updown_digging (Continuous updown digging) bool false
+
+#    Allow the use of other materials in desert biomes.
+#    Material changes in "Marking desert" and "Coating desert"
+#    (default = false)
+add_desert_material (Add desert material) bool false
+
+#    Type of light to use in tunnels.
+#    (default = default:torch)
+tunnel_lights (Tunnel lights) string default:torch
