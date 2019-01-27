@@ -3,7 +3,7 @@
 
 #    Default for digging mode in User config menu.
 #    (default = 2)
-tunnel_digging_mode (Tunnel digging mode) int 2 0
+tunnel_digging_mode (Tunnel digging mode) int 2 1 3
 
 #    Default for width/lined tunnels option in User config menu.
 #    (default = false)
