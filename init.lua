@@ -6,15 +6,16 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-beta-7 - 2019-01-26
---     Update narrow diagonal slopes when using angledstairs.
---     Bikes were getting stuck going up along sides of path.    
---     Config option changes WIP, they won't be permanent.
+-- Version 2.0-beta-8 - 2019-02-04
+--   Optimize for Minetest 5.0+ only.
+--   Add support for client-side translations.
+--   Add alternate command to bring up User Options menu.
+--   Add initial support for lights from other mods.
 
 -- Controls for operation
 -------------------------
 -- Left-click: dig one node.
--- Shift left-click: bring up user config menu.
+-- Shift left-click: bring up User Options menu. (Or use Aux right-click in Android.)
 -- Right-click: dig tunnel based on direction player pointing.
 -- Shift right-click: cycle through vertical digging directions.
 
@@ -28,9 +29,9 @@
 -- software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>. 
 
 
--- User config defaults (for minetest.conf)
+-- User Options defaults (for minetest.conf)
 -------------------------------------------
--- Initial digging mode for user config (1, 2, or 3).
+-- Initial digging mode for User Options (1, 2, or 3).
 local tunnel_mode_default = tonumber(minetest.settings:get("tunnel_digging_mode") or 2)
 
 -- Train tunnels can be lined with a coating.
@@ -98,9 +99,6 @@ local add_lighting = true
 -- Any mods with lights will have to be added to depends to make sure they're found here.
 -- Originally I used minetest.register_on_mods_loaded, but that's only a 5.0 feature.
 local lighting_search_radius = 1
-if minetest.registered_nodes[lighting] and minetest.registered_nodes[lighting].light_source > 13 then
-	lighting_search_radius = 2
-end
 
 -- Angledstairs mod gives much nicer bike path diagonal slopes.
 local angledstairs_exists = false
@@ -113,9 +111,19 @@ end
 -- Require "tunneling" priviledge to be able to user tunnelmaker tool.
 minetest.register_privilege("tunneling", {description = "Allow use of tunnelmaker tool"})
 
+-- Support client-side translations
+local S = minetest.get_translator(minetest.get_current_modname())
+
 -- Define top level variable to maintain per player state
 tunnelmaker = {}
 local user_config = {}
+
+-- Adjust light spacing if using brighter lights.
+minetest.register_on_mods_loaded(function()
+	if minetest.registered_nodes[lighting] and minetest.registered_nodes[lighting].light_source > 13 then
+		lighting_search_radius = 2
+	end
+end)
 
 -- Initialize player's state when player joins
 minetest.register_on_joinplayer(function(player)
@@ -235,9 +243,9 @@ minetest.register_globalstep(function(dtime)
 				return x*x + y*y + z*z
 			end
 			-- Calculate distance player has moved since setting up or down
-			local delta = distance2((player:getpos().x - tunnelmaker[pname].lastpos.x),
-									(player:getpos().y - tunnelmaker[pname].lastpos.y),
-									(player:getpos().z - tunnelmaker[pname].lastpos.z))
+			local delta = distance2((player:get_pos().x - tunnelmaker[pname].lastpos.x),
+									(player:get_pos().y - tunnelmaker[pname].lastpos.y),
+									(player:get_pos().z - tunnelmaker[pname].lastpos.z))
 			
 			-- If rotate to different direction, or move far enough from set position, reset to horizontal
 			if rawdir ~= tunnelmaker[pname].lastdir or (not user_config[pname].continuous_updown and delta > 0.2) then  -- tune to make distance moved feel right
@@ -794,6 +802,44 @@ local dig_tunnel = function(cdir, user, pointed_thing)
 	end
 end
 
+-- Display User Options menu.
+local display_menu = function(player)
+	local pname = player:get_player_name()
+	local remove_refs_on = false
+	if user_config[pname].remove_refs > 0 then
+		remove_refs_on = true
+	end
+	local clear_trees_on = false
+	if user_config[pname].clear_trees > 0 then
+		clear_trees_on = true
+	end
+	local formspec = "size[6.0,6.5]"..
+		"label[0.25,0.25;"..S("Tunnelmaker - User Options").."]"..
+		"dropdown[0.25,1.00;4;digging_mode;"..S("General purpose mode")..","..S("Advanced trains mode")..","..S("Bike path mode")..";"..tostring(user_config[pname].digging_mode).."]"..
+		"checkbox[0.25,1.75;add_lined_tunnels;"..S("Wide paths / lined tunnels")..";"..tostring(user_config[pname].add_lined_tunnels).."]"..
+		"checkbox[0.25,2.20;continuous_updown;"..S("Continuous up/down digging")..";"..tostring(user_config[pname].continuous_updown).."]"..
+		"checkbox[0.25,2.75;clear_trees;"..S("Clear tree cover").."*;"..tostring(clear_trees_on).."]"..
+		"checkbox[0.25,3.20;remove_refs;"..S("Remove reference nodes").."*;"..tostring(remove_refs_on).."]"..
+		"button_exit[2,5.00;2,0.4;exit;"..S("Exit").."]"..
+		"label[0.25,5.75;"..minetest.colorize("#888","* "..S("Automatically disabled after 2 min.")).."]"
+	local formspec_dm = ""
+	local dmat = ""
+	local use_desert_material = user_config[pname].use_desert_material
+	if add_desert_material and minetest.get_biome_data then
+		if not user_config[pname].lock_desert_mode then
+			use_desert_material = string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert")
+			user_config[pname].use_desert_material = use_desert_material
+		end
+		if use_desert_material then
+			dmat = S("Desert")
+		else
+			dmat = S("Non-desert")
+		end
+		formspec_dm = "checkbox[0.25,3.75;lock_desert_mode;"..S("Lock desert mode to:").." "..dmat..";"..tostring(user_config[pname].lock_desert_mode).."]"
+	end
+	minetest.show_formspec(pname, "tunnelmaker:form", formspec..formspec_dm)
+end
+
 local i
 for i,img in ipairs(images) do
 	local inv = 1
@@ -815,41 +861,8 @@ for i,img in ipairs(images) do
 			local pname = player:get_player_name()
 			local pos = pointed_thing.under
 			local key_stats = player:get_player_control()
-			-- If sneak button held down when left-clicking tunnelmaker, brings up User Config formspec.
-			if key_stats.sneak then  -- Configuration formspec
-				local remove_refs_on = false
-				if user_config[pname].remove_refs > 0 then
-					remove_refs_on = true
-				end
-				local clear_trees_on = false
-				if user_config[pname].clear_trees > 0 then
-					clear_trees_on = true
-				end
-				local formspec = "size[5,6.5]"..
-					"label[0.25,0.25;Tunnelmaker User Options]"..
-					"dropdown[0.25,1.00;4;digging_mode;General purpose mode,Advanced trains mode,Bike path mode;"..tostring(user_config[pname].digging_mode).."]"..
-					"checkbox[0.25,1.75;add_lined_tunnels;Wide paths / lined tunnels;"..tostring(user_config[pname].add_lined_tunnels).."]"..
-					"checkbox[0.25,2.20;continuous_updown;Continuous up/down digging;"..tostring(user_config[pname].continuous_updown).."]"..
-					"checkbox[0.25,2.75;clear_trees;Clear tree cover above*;"..tostring(clear_trees_on).."]"..
-					"checkbox[0.25,3.20;remove_refs;Remove reference nodes*;"..tostring(remove_refs_on).."]"..
-					"button_exit[2,5.00;1,0.4;exit;Exit]"..
-					"label[0.25,5.75;"..minetest.colorize("#888","* Automatically disabled after 2 mins.").."]"
-				local formspec_dm = ""
-				local dmat = ""
-				local use_desert_material = user_config[pname].use_desert_material
-				if add_desert_material and minetest.get_biome_data then
-					if not user_config[pname].lock_desert_mode then
-						use_desert_material = string.match(minetest.get_biome_name(minetest.get_biome_data(player:get_pos()).biome), "desert")
-						user_config[pname].use_desert_material = use_desert_material
-					end
-					if use_desert_material then
-						dmat = "Desert"
-					else
-						dmat = "Non-desert"
-					end
-					formspec_dm = "checkbox[0.25,3.75;lock_desert_mode;Lock desert mode to: "..dmat..";"..tostring(user_config[pname].lock_desert_mode).."]"
-				end
-				minetest.show_formspec(pname, "tunnelmaker:form", formspec..formspec_dm)
+			if key_stats.sneak then  -- Bring up User Options formspec.
+				display_menu(player)
 			else  -- Dig single node, if pointing to one
 				if pos ~= nil then
 					minetest.node_dig(pos, minetest.get_node(pos), player)
@@ -860,12 +873,13 @@ for i,img in ipairs(images) do
 
 		-- Dig tunnel with right mouse click (double tap on android)
 		on_place = function(itemstack, placer, pointed_thing)
-			local pname = placer and placer:get_player_name() or ""
-			-- If sneak button held down when right-clicking tunnelmaker, toggle updown dig direction:  up, down, horizontal, ...
-			-- Rotating or moving will reset to horizontal.
-			if placer:get_player_control().sneak then
+			local pname = placer:get_player_name()
+			local key_stats = placer:get_player_control()
+			if key_stats.sneak then  -- Toggle up/down digging direction.
 				tunnelmaker[pname].updown = (tunnelmaker[pname].updown + 1) % 3
-				tunnelmaker[pname].lastpos = { x = placer:getpos().x, y = placer:getpos().y, z = placer:getpos().z }
+				tunnelmaker[pname].lastpos = { x = placer:get_pos().x, y = placer:get_pos().y, z = placer:get_pos().z }
+			elseif key_stats.aux1 then  -- Bring up User Options menu. Alternative for Android.
+				display_menu(placer)
 			-- Otherwise dig tunnel based on direction pointed and current updown direction
 			elseif pointed_thing.type=="node" then
 				-- if advtrains_track, I lower positions of pointed_thing to right below track, but keep name the same. Same with snow cover.
@@ -880,6 +894,13 @@ for i,img in ipairs(images) do
 				if not user_config[pname].continuous_updown then
 					tunnelmaker[pname].updown = 0   -- reset to horizontal after one use
 				end
+			end
+		end,
+
+		-- Bring up User Options menu, when not pointing to anything. Alternative for Android.
+		on_secondary_use = function(itemstack, placer, pointed_thing)
+			if placer:get_player_control().aux1 then
+				display_menu(placer)
 			end
 		end,
 	}
@@ -916,7 +937,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].lock_desert_mode = false
 	elseif fields.lock_desert_mode == "true" then
 		user_config[pname].lock_desert_mode = true
-	elseif fields.digging_mode == "General purpose mode" then
+	elseif fields.digging_mode == S("General purpose mode") then
 		user_config[pname].digging_mode = 1
 		user_config[pname].height = tunnel_height_general
 		user_config[pname].add_arches = false
@@ -927,7 +948,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].add_bike_ramps = false
 		user_config[pname].coating_not_desert = tunnel_material
 		user_config[pname].coating_desert = tunnel_material_desert
-	elseif fields.digging_mode == "Advanced trains mode" then
+	elseif fields.digging_mode == S("Advanced trains mode") then
 		user_config[pname].digging_mode = 2
 		user_config[pname].height = tunnel_height_train
 		user_config[pname].add_arches = add_arches_config
@@ -938,7 +959,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		user_config[pname].add_bike_ramps = false
 		user_config[pname].coating_not_desert = tunnel_material
 		user_config[pname].coating_desert = tunnel_material_desert
-	elseif fields.digging_mode == "Bike path mode" then
+	elseif fields.digging_mode == S("Bike path mode") then
 		user_config[pname].digging_mode = 3
 		user_config[pname].height = tunnel_height_bike
 		user_config[pname].add_arches = false

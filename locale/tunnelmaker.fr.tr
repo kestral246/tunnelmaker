@@ -1,0 +1,14 @@
+# textdomain: tunnelmaker
+Tunnelmaker - User Options=Tunnelmaker - Options utilisateur
+General purpose mode=Mode de l'usage général
+Advanced trains mode=Mode de l'advtrains
+Bike path mode=Mode de la piste cyclable
+Wide paths / lined tunnels=Chemins larges / tunnels doublés
+Continuous up/down digging=Creuser en haut/en bas continuellment
+Clear tree cover=Enlevel la couverture d'arbre
+Remove reference nodes=Enlever les nodes de références
+Lock desert mode to:=Fixer le mode de désert à:
+Desert=Désert
+Non-desert=Non-désert
+Exit=Quitter
+Automatically disabled after 2 min.=Désactiver automatiquement après 2 min.
