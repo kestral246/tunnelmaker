@@ -9,6 +9,7 @@ By David G (kestral246@gmail.com), with significant contributions by Mikola.
 
 Features
 --------
+- Version 2.0 of tunnelmaker requires Minetest 5.0+.
 - Create paths, bridges, and tunnels in all sixteen possible advtrains track directions with one click.
 - Also digs up or down in the eight possible advtrains slope track directions.
 - Digging mode and options can be set using new User Options menu.
@@ -68,9 +69,9 @@ Descriptions of all the options:
 - **Digging mode** Select one of the three digging mode.
 - **Wide paths / lined tunnels** Select between narrow and wide paths, and whether tunnels are lined with stone or not.
 - **Continuous up/down digging** Don't reset up/down after each dig.
-- **Clear tree cover above** Remove all plant material above dig up to 30 nodes above ground. CPU intensive, so shuts off after two minutes.
+- **Clear tree cover** Remove all plant material above dig up to 30 nodes above ground. CPU intensive, so shuts off after two minutes.
 - **Remove reference nodes** Easily remove reference nodes by walking over them. Also shuts off after two minutes.
-- **Lock desert mode to: either "Desert" or "Not desert"** Option only available when using Minetest 5.0 and when "add_desert_material = true" has been added to minetest.conf. Overrides use of desert materials in desert biomes.
+- **Lock desert mode to: either "Desert" or "Non-desert"** Option only available when "add_desert_material = true" has been added to minetest.conf. Overrides use of desert materials in desert biomes. Useful for transition regions.
 
 Advtrains digging reference
 ---------------------------
