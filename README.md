@@ -26,7 +26,7 @@ Features
 Controls
 --------
 - **Left-click:** Super dig one node. One click digs any node (non-repeating) and places it in player's inventory. However, it can't be used to pick up dropped items.
-- **Shift-left-click:** Bring up User Options menu (see below).
+- **Shift-left-click:** Bring up User Options menu (see below). Can also use Aux-right-click, which is needed for Android.
 - **Right-click:** Dig tunnel in direction player pointed. Note that this won't place any of the dug nodes in player's inventory.
 - **Shift-right-click:** Cycle through vertical digging modes, up, down, and horizontal.
 
@@ -61,7 +61,7 @@ User Options menu
 ----------------
 Use shift-left-click to bring up this menu.
 
-![Tunnelmaker User Options](images/user_config.png "Tunnelmaker User Options")
+![Tunnelmaker User Options](images/user_options.gif "Tunnelmaker User Options")
 
 Descriptions of all the options:
 
