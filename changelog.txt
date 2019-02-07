@@ -1,4 +1,35 @@
 tunnelmaker change log
+-- Version 2.0-pre-1 (ver-2 git branch)
+-- Started with Mikola's update. Changes so far look very good, and they're significant enough to bump version to 2.0.
+-- Updated left-click use. Left-click does single node_dig without repeating. Sneak left-click brings up formspec.
+-- Added User config formspec with three items: Remove reference nodes, Dig non-train tunnels, and Continuous updown digging.
+--   Remove reference nodes replaces chat commands.
+--   Dig non-train tunnels allows digging 5x5 unlined tunnels without references, gravel, etc.
+-- Changed lights back to torches with option to use mese_post_lights.
+-- Prefixed all minetest.conf settings with tunnel_, but didn't update settingtypes.txt.
+-- Removed the few characters in comments that linux reported to have encoding problems.
+-- Added flip and rotate support to run_list, so one only needs to give the seven base digging patterns, instead of all 32.
+-- Still in the process of validation and verification. Each time new options are added, this process gets harder.
+-- Added sounds for digging, but need better one for tunneling.
+-- Per Mikola's comment, license is TBD. Need reference to code actually borrowed.
+
+-- Version 1.X.X
+-- Removed the crafting scheme for the tunnelmaker tool. Normal players do not need to craft the tunnelmaker tool, and the administration can use the command /give <name> tunnelmaker:tool1 .
+-- Added the ability to make a mound of gravel (or any other material) and an additional base under the gravel.
+-- Custom configurations are made in settingtypes.txt and accessed in the main menu minetest / advanced settings / mods / tunnelmaker.
+-- Add additional user configurations.
+-- Optionally enable the use of other materials in desert biomes.
+-- Optionally disable to replace the coating of tunnels on a specific coating.
+-- Optionally disable wide paths in the woods
+-- Optionally disable gravel mound and additional base.
+-- Optionally disable markup for the railway advtrains.
+-- Now you can change any material that is used in the tunnelmaker
+-- Added coverage in underwater tunnels
+-- When using "Glass walls", underwater tunnels have become completely sealed.
+-- Added the function of automatic replacement of material markup on the road surface. Use the remove_marking <on | off> command.
+-- Now for the operation of the functions of the mod is not required creative mode.
+-- Now on the floor of the tunnel there is always a specific coating.
+
 -- Version 1.0
 -- Add two additional user configurations:
 -- Set height of tunnels.

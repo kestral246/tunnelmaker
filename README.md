@@ -1,29 +1,41 @@
+Tunnelmaker 2.0 Beta
+====================
+
+A Minetest Mod to easily create arbitrarily curved tunnels, pathways, and bridges.
+
 ![Tunnelmaker Screenshot](screenshot.png "Tunnelmaker")
 
-A Minetest Mod to easily create arbitrarily curved tunnels.
-
-Especially designed to make laying track for the advtrains mod easier.
-
-by David G (kestral246@gmail.com)
-
+By David G (kestral246@gmail.com), with significant contributions by Mikola.
 
 Features
 --------
-- Digs "arched" tunnels (5 nodes wide and 5 nodes tall) in all sixteen possible advtrains track directions with one click. Also digs up or down in the eight possible advtrains slope track directions.
-- Fills in tunnel floor (central 3 nodes wide) with stone. Outside of tunnels this can be used to  clear ground, provide cuts and fills, and build simple stone bridges. However, bridge supports will need to be added manually.
-- **New:** Tunneling through water has been enabled by default. This will add a glass enclosure around the tunnel as you go. Configuration variable to disable, if desired.
-- **New:** Height of tunnel and whether to use "arches" are now configuration options. (Defaults to height of 5 with "arches", which matches previous release.)
-- Requires "tunneling" privilege, checks protections, and only works in creative mode.
+- Version 2.0 of tunnelmaker requires Minetest 5.0+.
+- Create paths, bridges, and tunnels in all sixteen possible advtrains track directions with one click.
+- Also digs up or down in the eight possible advtrains slope track directions.
+- Digging mode and options can be set using new User Options menu.
+- Supports Advanced trains mod with gravel embankment, arched and optionally lined tunnels, and two widths of bridges.
+- Supports Bike mod with two widths of cobblestone pathways and bridges, along with unlined tunnels.
+- Supports general excavation with unlined and lined tunnels.
+- Adds reference nodes to help digging and laying advtrains track—now easy to remove when done.
+- Adds glass enclosure when in water to create water tunnels.
+- Requires "tunneling" privilege, and checks protections before digging.
+- No crafting recipe, so needs to be given to player.
+- Works in both creative and survival modes, but tunneling does not place any nodes into user's inventory.
 
-![Simple Stone Bridge](images/simple_stone_bridge.png "Simple Stone Bridge")
+![Bike path up mountain](images/bike_path.png "Bike path up mountain")
 
+Controls
+--------
+- **Left-click:** Super dig one node. One click digs any node (non-repeating) and places it in player's inventory. However, it can't be used to pick up dropped items.
+- **Shift-left-click:** Bring up User Options menu (see below). Can also use Aux-right-click, which is needed for Android.
+- **Right-click:** Dig tunnel in direction player pointed. Note that this won't place any of the dug nodes in player's inventory.
+- **Shift-right-click:** Cycle through vertical digging modes, up, down, and horizontal.
 
 How to enable
 -------------
-- Enable creative mode.  This mod is too overpowered for survival mode.
-- Give player "tunneling" privilege (/grant &lt;player&gt; tunneling).
-- To give player a tunnelmaker tool use (/give &lt;player&gt; tunnelmaker:1). *Or see below for crafting recipe.*
-
+- Install tunnelmaker mod, requires default and stairs. For much smoother bike path ramps, I recommend that the angledstairs mod also be installed, but it's not required.
+- Grant player "tunneling" privilege (/grant &lt;player&gt; tunneling).
+- To give player a tunnelmaker tool use (/give &lt;player&gt; tunnelmaker:tool1).
 
 How to dig
 ----------
@@ -42,10 +54,24 @@ Digging for slopes
 - Point player in desired digging direction.
 - Hold sneak key (shift on pc) and right-click mouse to select digging mode.  Inventory icon will cycle through possible modes with each click:  'U' for digging up, 'D' for digging down, and no letter for default horizontal.
 - Release sneak key and right-click mouse to dig tunnel.
-- *Mode will reset after each dig.  It will also reset if player turns or moves.*
+- User option whether to reset each time or not.
 
 ![Tunnelmaker Icons](images/icons.png "Tunnelmaker Icons")
 
+User Options menu
+----------------
+Use shift-left-click to bring up this menu.
+
+![Tunnelmaker User Options](images/user_options.gif "Tunnelmaker User Options")
+
+Descriptions of all the options:
+
+- **Digging mode** Select one of the three digging mode.
+- **Wide paths / lined tunnels** Select between narrow and wide paths, and whether tunnels are lined with stone or not.
+- **Continuous up/down digging** Don't reset up/down after each dig.
+- **Clear tree cover** Remove all plant material above dig up to 30 nodes above ground. CPU intensive, so shuts off after two minutes.
+- **Remove reference nodes** Easily remove reference nodes by walking over them. Also shuts off after two minutes.
+- **Lock desert mode to: either "Desert" or "Non-desert"** Option only available when "add_desert_material = true" has been added to minetest.conf. Overrides use of desert materials in desert biomes. Useful for transition regions.
 
 Advtrains digging reference
 ---------------------------
@@ -60,35 +86,11 @@ The following diagrams show how to make curved tunnels that support the differen
 
 ![Turns from 45°](images/dir45.png "Turns from 45")
 
-
-Other details
--------------
-- Using left-click digs similarly to a steel pickaxe, which is useful for making minor adjustments.
-- Cobblestone references are placed to show where to continue digging for laying advtrains track. (Configuration variable to disable.)
-- If the ceiling is going to be a falling node, it is replaced with cobblestone before digging out below it.
-- Torches are placed only if ceiling is stone or desert_stone. (Torch configuration options added.)
-- Continuous up/down digging configuration option added.
-- For minetest version 5.0+, when in desert biomes the fills will change to the desert versions of stone or cobble.
-- Won't dig advtrains track.  Highlighting track will dig based on ground below it. However, be careful with slope track, since this probably isn't what you want. Also this won't work with ATC track, since it also uses right-click.
-
-
-Crafting guide
---------------
-```
-  diamondblock   mese_block     diamondblock
-  mese_block     diamondblock   mese_block
-  diamondblock   mese_block     diamondblock
-```
-
-![Crafting guide](images/crafting.png "Crafting guide")
-
-
 License
 -------
 - **textures:** License CC0-1.0 
 - **code:**  My changes to original code are CC0-1.0
 - **original compassgps license:** Original code by Echo, PilzAdam, and TeTpaAka is WTFPL. Kilarin (Donald Hines) changes are CC0 (No rights reserved)
-
 
 Thanks
 ------
