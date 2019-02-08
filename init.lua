@@ -6,6 +6,8 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-beta-9 - 2019-02-07
+--   Remove undeclared global variable warning when angledstairs mod not used.
 -- Version 2.0-beta-8 - 2019-02-04
 --   Optimize for Minetest 5.0+ only.
 --   Add support for client-side translations.
@@ -102,7 +104,7 @@ local lighting_search_radius = 1
 
 -- Angledstairs mod gives much nicer bike path diagonal slopes.
 local angledstairs_exists = false
-if angledstairs ~= nil then
+if minetest.registered_nodes["angledstairs:angled_slab_left_cobble"] then
 	angledstairs_exists = true
 end
 -- End of configuration
