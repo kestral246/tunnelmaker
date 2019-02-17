@@ -1,5 +1,5 @@
-Tunnelmaker 2.0 Beta
-====================
+Tunnelmaker 2.0
+===============
 
 A Minetest Mod to easily create arbitrarily curved tunnels, pathways, and bridges.
 
@@ -7,9 +7,12 @@ A Minetest Mod to easily create arbitrarily curved tunnels, pathways, and bridge
 
 By David G (kestral246@gmail.com), with significant contributions by Mikola.
 
+Warning: Version 2 only supports Minetest 5.0+.
+---------------------------------------------------
+For Minetest 0.4.x, use the git branch legacy, or the following zip file: [tunnelmaker-legacy.zip](https://github.com/kestral246/tunnelmaker/archive/legacy.zip).
+
 Features
 --------
-- Version 2.0 of tunnelmaker requires Minetest 5.0+.
 - Create paths, bridges, and tunnels in all sixteen possible advtrains track directions with one click.
 - Also digs up or down in the eight possible advtrains slope track directions.
 - Digging mode and options can be set using new User Options menu.
@@ -21,19 +24,20 @@ Features
 - Requires "tunneling" privilege, and checks protections before digging.
 - No crafting recipe, so needs to be given to player.
 - Works in both creative and survival modes, but tunneling does not place any nodes into user's inventory.
+- Supports client-side translation files. Currently only have Russian and my attempt at a French translation. **Other languages will be gratefully accepted.** Reference template file is available in locale directory.
 
 ![Bike path up mountain](images/bike_path.png "Bike path up mountain")
 
 Controls
 --------
 - **Left-click:** Super dig one node. One click digs any node (non-repeating) and places it in player's inventory. However, it can't be used to pick up dropped items.
-- **Shift-left-click:** Bring up User Options menu (see below). Can also use Aux-right-click, which is needed for Android.
+- **Shift-left-click:** Bring up User Options menu (see below). Can also use Aux-right-click, which is currently needed for Android.
 - **Right-click:** Dig tunnel in direction player pointed. Note that this won't place any of the dug nodes in player's inventory.
 - **Shift-right-click:** Cycle through vertical digging modes, up, down, and horizontal.
 
 How to enable
 -------------
-- Install tunnelmaker mod, requires default and stairs. For much smoother bike path ramps, I recommend that the angledstairs mod also be installed, but it's not required.
+- Install tunnelmaker mod, requires default and stairs. For nicer bike path ramps, I recommend installing the angledstairs mod, which was used for the picture above, but it's not required.
 - Grant player "tunneling" privilege (/grant &lt;player&gt; tunneling).
 - To give player a tunnelmaker tool use (/give &lt;player&gt; tunnelmaker:tool1).
 
@@ -54,19 +58,19 @@ Digging for slopes
 - Point player in desired digging direction.
 - Hold sneak key (shift on pc) and right-click mouse to select digging mode.  Inventory icon will cycle through possible modes with each click:  'U' for digging up, 'D' for digging down, and no letter for default horizontal.
 - Release sneak key and right-click mouse to dig tunnel.
-- User option whether to reset each time or not.
+- There is a user option to control whether to reset direction after each dig or not (see below).
 
 ![Tunnelmaker Icons](images/icons.png "Tunnelmaker Icons")
 
 User Options menu
 ----------------
-Use shift-left-click to bring up this menu.
+Use shift-left-click to bring up this menu (or aux-right-click if using Android).
 
 ![Tunnelmaker User Options](images/user_options.gif "Tunnelmaker User Options")
 
 Descriptions of all the options:
 
-- **Digging mode** Select one of the three digging mode.
+- **Digging mode** Select one of the three digging modes: General purpose, Advanced trains, or Bike paths.
 - **Wide paths / lined tunnels** Select between narrow and wide paths, and whether tunnels are lined with stone or not.
 - **Continuous up/down digging** Don't reset up/down after each dig.
 - **Clear tree cover** Remove all plant material above dig up to 30 nodes above ground. CPU intensive, so shuts off after two minutes.
