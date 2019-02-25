@@ -6,13 +6,8 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0-beta-9 - 2019-02-07
---   Remove undeclared global variable warning when angledstairs mod not used.
--- Version 2.0-beta-8 - 2019-02-04
---   Optimize for Minetest 5.0+ only.
---   Add support for client-side translations.
---   Add alternate command to bring up User Options menu.
---   Add initial support for lights from other mods.
+-- Version 2.0-beta-10 - 2019-02-24
+--   Update light check to only keep torches and defined tunnel_lights.
 
 -- Controls for operation
 -------------------------
@@ -317,13 +312,10 @@ local is_flammable = function(name)
 	return group_flammable
 end
 
--- Tests whether node is a light. (Note that it could also be flammable).
+-- Test whether node is one of three orientations of torch or is the defined tunnel_lights.
+-- ToDo: Update if I find other lights I want to support.
 local is_light = function(name)
-	if minetest.registered_nodes[name] then
-		return minetest.registered_nodes[name].light_source > 0
-	else
-		return false
-	end
+	return string.match(name, "torch") or name == lighting
 end
 
 -- Lookup table to map direction to appropriate rotation for angled_stair_left nodes. 
