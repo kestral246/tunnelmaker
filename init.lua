@@ -6,6 +6,9 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-beta-11 - 2019-02-25
+--   Use torch group in light check to detect torches.
+--   Knight move lights were offcentered, moved over far reference node.
 -- Version 2.0-beta-10 - 2019-02-24
 --   Update light check to only keep torches and defined tunnel_lights.
 
@@ -312,10 +315,13 @@ local is_flammable = function(name)
 	return group_flammable
 end
 
--- Test whether node is one of three orientations of torch or is the defined tunnel_lights.
--- ToDo: Update if I find other lights I want to support.
+-- Test whether node is in torch group or is the defined tunnel_lights.
 local is_light = function(name)
-	return string.match(name, "torch") or name == lighting
+	local group_torch = false
+	if minetest.registered_nodes[name] then
+		group_torch = minetest.registered_nodes[name].groups.torch and minetest.registered_nodes[name].groups.torch > 0
+	end
+	return group_torch or name == lighting
 end
 
 -- Lookup table to map direction to appropriate rotation for angled_stair_left nodes. 
@@ -702,8 +708,8 @@ local dig_tunnel = function(cdir, user, pointed_thing)
 
             -- Knight move (north-northwest reference).
             [2] = { {{-4, 3},{0,0, 4, 4,4,4,4, 40,0}}, {{-3, 3},{0,0, 4, 4,4,4, 4,  4,0}}, {{-2, 3},{0, 0,4, 4,4,4, 4,  4,0}}, {{-1, 3},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 0, 3},{0, 0,4, 4,4,4,4, 4,0}}, {{ 1, 3},{0, 0,4, 4,4,4, 4,  4,0}}, {{ 2, 3},{0,0,37,  3,3,3, 3, 30,0}},
-                    {{-4, 2},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 2},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 2},{0,86,6, 1,1,1, 1,  2,0}}, {{-1, 2},{0,86,5, 1,1,1, 1, 2,0}}, {{ 0, 2},{0,86,6, 1,1,1,1, 2,0}}, {{ 1, 2},{0, 0,7, 1,1,1,21, 32,0}}, {{ 2, 2},{0,0,37,  3,3,3, 3,  3,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
-                    {{-4, 1},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 1},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 1},{0,86,6, 1,1,1, 1,  2,0}}, {{-1, 1},{0,86,6, 1,1,1,77, 2,0}}, {{ 0, 1},{0,86,6, 1,1,1,1, 2,0}}, {{ 1, 1},{0,86,6, 1,1,1, 1,  2,0}}, {{ 2, 1},{0,0, 7,  1,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 2},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 2},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 2},{0,86,6, 1,1,1, 1,  2,0}}, {{-1, 2},{0,86,5, 1,1,1,77, 2,0}}, {{ 0, 2},{0,86,6, 1,1,1,1, 2,0}}, {{ 1, 2},{0, 0,7, 1,1,1,21, 32,0}}, {{ 2, 2},{0,0,37,  3,3,3, 3,  3,0}}, {{ 3, 2},{0,0,37, 3,3,3,3, 30,0}},
+                    {{-4, 1},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 1},{0,0, 7, 1,1,1,21, 32,0}}, {{-2, 1},{0,86,6, 1,1,1, 1,  2,0}}, {{-1, 1},{0,86,6, 1,1,1, 1, 2,0}}, {{ 0, 1},{0,86,6, 1,1,1,1, 2,0}}, {{ 1, 1},{0,86,6, 1,1,1, 1,  2,0}}, {{ 2, 1},{0,0, 7,  1,1,1,21, 32,0}}, {{ 3, 1},{0,0,37, 3,3,3,3, 30,0}},
                     {{-4, 0},{0,0,37, 3,3,3,3, 30,0}}, {{-3, 0},{0,0,37, 3,3,3, 3,  3,0}}, {{-2, 0},{0, 0,7, 1,1,1,21, 32,0}}, {{-1, 0},{0,86,6, 1,1,1, 1, 2,0}}, {{ 0, 0},{0,86,5, 1,1,1,1, 2,0}}, {{ 1, 0},{0,86,6, 1,1,1, 1,  2,0}}, {{ 2, 0},{0,0, 7, 19,1,1,21, 32,0}}, {{ 3, 0},{0,0,37, 3,3,3,3, 30,0}},
                                                        {{-3,-1},{0,0,37, 3,3,3, 3, 30,0}}, {{-2,-1},{0, 0,4, 4,4,4, 4,  4,0}}, {{-1,-1},{0, 0,4, 4,4,4, 4, 4,0}}, {{ 0,-1},{0, 0,4, 4,4,4,4, 4,0}}, {{ 1,-1},{0, 0,4, 4,4,4, 4,  4,0}}, {{ 2,-1},{0,0, 4,  4,4,4, 4,  4,0}}, {{ 3,-1},{0,0, 4, 4,4,4,4, 40,0}},
                 },
