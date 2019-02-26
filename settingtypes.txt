@@ -21,3 +21,11 @@ add_desert_material (Add desert material) bool false
 #    Type of light to use in tunnels.
 #    (default = default:torch)
 tunnel_lights (Tunnel lights) string default:torch
+
+#    Set height for train tunnels.
+#    (default = 5)
+train_tunnel_height (Train tunnel height) int 5 5 8
+
+#    Define if train tunnels have arches.
+#    (default = true)
+train_tunnel_arches (Train tunnel arches) bool true

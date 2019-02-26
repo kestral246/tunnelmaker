@@ -6,6 +6,9 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-beta-12 - 2019-02-26
+--   Use existence of drop to handle multi-orientation lights.
+--   Add a couple of config options to minetest.conf.
 -- Version 2.0-beta-11 - 2019-02-25
 --   Use torch group in light check to detect torches.
 --   Knight move lights were offcentered, moved over far reference node.
@@ -48,17 +51,19 @@ local add_desert_material = minetest.settings:get_bool("add_desert_material", fa
 -- Can use other lights in tunnels instead of torches.
 local lighting = minetest.settings:get("tunnel_lights") or "default:torch"
 
+-- Set height for train tunnels (5 to 8). Currently matching version 1.
+local tunnel_height_train = tonumber(minetest.settings:get("train_tunnel_height") or 5)
+
+-- Train tunnels (only) can have "arches" along the sides.
+local add_arches_config = minetest.settings:get_bool("train_tunnel_arches", true)
 
 -- Configuration variables
 -- (If you'd really like some of these available to minetest.conf, request them.)
 --------------------------
 -- Tunnel height, can vary for each digging mode.
 local tunnel_height_general = 4
-local tunnel_height_train = 5  -- Keep consistent with version 1 for now.
 local tunnel_height_bike = 5
 
--- Train tunnels (only) can have "arches" along the sides.
-local add_arches_config = true
 
 -- Material for walls and floors (general and train path beyond embankment).
 local tunnel_material = "default:stone"
@@ -105,6 +110,11 @@ local angledstairs_exists = false
 if minetest.registered_nodes["angledstairs:angled_slab_left_cobble"] then
 	angledstairs_exists = true
 end
+
+-- Determine if lights for tunnels support multiple orientations like torches.
+-- Ceiling version should be defined in minetest.conf, but don't want other orientations to be deleted either.
+local multi_orient = false
+local base_lighting = ""
 -- End of configuration
 
 
@@ -118,10 +128,17 @@ local S = minetest.get_translator(minetest.get_current_modname())
 tunnelmaker = {}
 local user_config = {}
 
--- Adjust light spacing if using brighter lights.
+-- Adjust light spacing and deal with multi-orientation lights.
 minetest.register_on_mods_loaded(function()
-	if minetest.registered_nodes[lighting] and minetest.registered_nodes[lighting].light_source > 13 then
-		lighting_search_radius = 2
+	if minetest.registered_nodes[lighting] then
+		if minetest.registered_nodes[lighting].light_source > 13 then
+			lighting_search_radius = 2
+		end
+		if minetest.registered_nodes[lighting].drop then
+			multi_orient = true
+			base_lighting = minetest.registered_nodes[lighting].drop
+			-- minetest.debug("base = "..base_lighting)  -- debug
+		end
 	end
 end)
 
@@ -315,13 +332,18 @@ local is_flammable = function(name)
 	return group_flammable
 end
 
--- Test whether node is in torch group or is the defined tunnel_lights.
+-- Test for torch or defined tunnel_lights (including multi-orientation versions).
 local is_light = function(name)
-	local group_torch = false
+	local light = false
 	if minetest.registered_nodes[name] then
-		group_torch = minetest.registered_nodes[name].groups.torch and minetest.registered_nodes[name].groups.torch > 0
+		if minetest.registered_nodes[name].drop then  -- multi-orient light, so compare with base light
+			local base = minetest.registered_nodes[name].drop
+			light = (base == "default:torch") or (multi_orient and base == base_lighting)
+		else  -- not multi-orient or is base light
+			light = (name == lighting) or (name == base_lighting)
+		end
 	end
-	return group_torch or name == lighting
+	return light
 end
 
 -- Lookup table to map direction to appropriate rotation for angled_stair_left nodes. 
