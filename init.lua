@@ -6,6 +6,8 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-beta-13 - 2019-03-01
+--   Check for unbreakable and can_dig() before digging. (Thanks to argyle and his borders mod.)
 -- Version 2.0-beta-12 - 2019-02-26
 --   Use existence of drop to handle multi-orientation lights.
 --   Add a couple of config options to minetest.conf.
@@ -346,6 +348,24 @@ local is_light = function(name)
 	return light
 end
 
+-- Combine all the checks to determine if digging should be allowed.
+-- Currently supports area protection, unbreakable, and can_dig(). Others TBD.
+local ok_to_tunnel = function(user, pos, name)
+	local ndef = minetest.registered_nodes[name]
+	if minetest.is_protected(pos, user) then
+		--minetest.debug("Protection error")
+		return false
+	elseif not (minetest.get_item_group(name, "unbreakable") == 0) then  -- Unbreakable
+		--minetest.debug("Unbreakable node = "..name)
+		return false
+	elseif ndef.can_dig ~= nil then
+		--minetest.debug("Test can_dig = "..name)
+		return ndef.can_dig(pos, user)
+	else
+		return true
+	end
+end
+
 -- Lookup table to map direction to appropriate rotation for angled_stair_left nodes. 
 local astairs_lu = {
 	[-1] ={[2]=1,[6]=0,[10]=3,[14]=2},  -- down
@@ -360,8 +380,8 @@ region = {
 	[1] =  -- Air. Don't delete lights or track. (Works with torches, but not with ceiling mounted lamps.)
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
-				local name = minetest.get_node(pos).name
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				if not (name == "air" or is_light(name) or string.match(name, "dtrack")) then
 					minetest.set_node(pos, {name = "air"})
 				end
@@ -370,9 +390,9 @@ region = {
 	[2] =  -- Ceiling.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				local pname = user:get_player_name()
-				local name = minetest.get_node(pos).name
 				if string.match(name, "water") then  -- Always line water with glass.
 					minetest.set_node(pos, {name = glass_walls})
 				elseif user_config[pname].add_lined_tunnels and user_config[pname].digging_mode ~= 3 then  -- Line tunnel ...
@@ -406,9 +426,9 @@ region = {
 	[3] =  -- Side walls.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				local pname = user:get_player_name()
-				local name = minetest.get_node(pos).name
 				if string.match(name, "water") then
 					minetest.set_node(pos, {name = glass_walls})  -- Always line water with glass.
 				elseif user_config[pname].add_lined_tunnels and user_config[pname].digging_mode ~= 3 then  -- Line tunnel ...
@@ -421,8 +441,8 @@ region = {
 	[4] =  -- Temporary endcaps.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
-				local name = minetest.get_node(pos).name
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				if string.match(name, "water") then  -- Place temporary endcap if water.
 					minetest.set_node(pos, {name = glass_walls})
 				end
@@ -431,9 +451,9 @@ region = {
 	[5] =  -- Reference markers.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				local pname = user:get_player_name()
-				local name = minetest.get_node(pos).name
 				-- Figure out what replacement material should be.
 				local rep_mat
 				if user_config[pname].add_refs then  -- Add reference marks.
@@ -455,9 +475,9 @@ region = {
 	[6] =  -- Embankment area.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				local pname = user:get_player_name()
-				local name = minetest.get_node(pos).name
 				if user_config[pname].add_floors then  -- Going to set all.
 					if user_config[pname].add_embankment then
 						minetest.set_node(pos, {name = embankment, param2 = 42})
@@ -474,9 +494,9 @@ region = {
 	[7] =  -- Wide floors. (starting to refine)
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				local pname = user:get_player_name()
-				local name = minetest.get_node(pos).name
 				if user_config[pname].add_floors and user_config[pname].add_wide_floors then
 					local param2 = minetest.get_node(pos).param2
 					local pos0 = vector.add(pos, {x=0, y=-1, z=0})
@@ -496,29 +516,29 @@ region = {
 	[8] =  -- Underfloor, only used directly for slope up and slope down where embankment or brace is always needed.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				minetest.set_node(pos, {name = lining_material(user, pos)})
 			end
 		end,
 	[10] =  -- Bike slope down narrow (air or angled slab).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
-				local pname = user:get_player_name()
-				local name = minetest.get_node(pos).name
-				if user_config[pname].add_bike_ramps and angledstairs_exists then
-					if not (name == angled_slab_desert or name == angled_slab_not_desert) then  -- Don't overwrite angled_slab on ref when going diagonally down.
-						region[1](x, y, z, dir, user, pointed_thing)
-					end
-				else
+			local pname = user:get_player_name()
+			local name = minetest.get_node(pos).name
+			if user_config[pname].add_bike_ramps and angledstairs_exists then
+				if not (name == angled_slab_desert or name == angled_slab_not_desert) then  -- Don't overwrite angled_slab on ref when going diagonally down.
 					region[1](x, y, z, dir, user, pointed_thing)
 				end
+			else
+				region[1](x, y, z, dir, user, pointed_thing)
 			end
 		end,
 	[11] =  -- Bike slope up or down narrow (air or angled slab).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps and angledstairs_exists then
 					if is_desert(user, pos) then
@@ -534,7 +554,8 @@ region = {
 	[12] =  -- Bike slope up or down narrow (slab or angled stair).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps then
 					if angledstairs_exists and math.fmod(dir.horiz, 4) == 2 then  -- diagonal slope
@@ -558,7 +579,8 @@ region = {
 	[13] =  -- Bike slope wide up or down (slabs).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps and user_config[pname].add_wide_floors then
 					if is_desert(user, pos) then
@@ -574,15 +596,13 @@ region = {
 	[19] =  -- Bike slopes. Don't remove bike slopes placed by previous down slope.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
-				local pname = user:get_player_name()
-				local node = minetest.get_node(pos)
-				if not user_config[pname].add_bike_ramps or
-						(user_config[pname].add_bike_ramps and
-						not ((node.name == slab_not_desert or node.name == slab_desert) and node.param2 == 2) and
-						not (node.name == angled_slab_not_desert or node.name == angled_slab_desert)) then
-					region[1](x, y, z, dir, user, pointed_thing)
-				end
+			local pname = user:get_player_name()
+			local node = minetest.get_node(pos)
+			if not user_config[pname].add_bike_ramps or
+					(user_config[pname].add_bike_ramps and
+					not ((node.name == slab_not_desert or node.name == slab_desert) and node.param2 == 2) and
+					not (node.name == angled_slab_not_desert or node.name == angled_slab_desert)) then
+				region[1](x, y, z, dir, user, pointed_thing)
 			end
 		end,
 	[21] =  -- Arch or air, (use for arch).
@@ -613,9 +633,9 @@ region = {
 	[37] =  -- Floor under wall. Only place floor under wall if wall right above floor.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				local pname = user:get_player_name()
-				local name = minetest.get_node(pos).name
 				local pos1 = vector.add(pos, {x=0, y=1, z=0})
 				local name1 = minetest.get_node(pos1).name
 				if string.match(name, "water") then
@@ -632,15 +652,15 @@ region = {
 				region[4](x, y, z, dir, user, pointed_thing)
 			end
 		end,
-	[77] =  -- Add light. Need to figure out how to handle ceiling lamps. They get placed, but cleared by [1]
+	[77] =  -- Add light.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			if not minetest.is_protected(pos, user) then
+			local name = minetest.get_node(pos).name
+			if ok_to_tunnel(user, pos, name) then
 				region[1](x, y, z, dir, user, pointed_thing)
+				name = minetest.get_node(pos).name  -- Update name after attempting to dig.
 				local pname = user:get_player_name()
-				local name = minetest.get_node(pos).name
 				local pos1 = vector.add(pos, {x=0, y=1, z=0})
-				--local name1 = minetest.get_node(pos1).name
 				if name == "air" then
 					local ceiling = minetest.get_node(pos1).name
 					if add_lighting and (ceiling == user_config[pname].coating_not_desert or ceiling == "default:stone" or ceiling == user_config[pname].coating_desert or ceiling == "default:desert_stone" or ceiling == glass_walls) and
