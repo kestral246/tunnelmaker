@@ -6,6 +6,10 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-beta-15 - 2019-03-02
+--   MAJOR change with controls (see below for details).
+--   Support on_dignodes callbacks like used in borders mod for barriers.
+--   Also check tunneling privs when digging single node.
 -- Version 2.0-beta-14 - 2019-03-01
 --   Light placement changes.
 -- Version 2.0-beta-13 - 2019-03-01
@@ -19,12 +23,16 @@
 -- Version 2.0-beta-10 - 2019-02-24
 --   Update light check to only keep torches and defined tunnel_lights.
 
--- Controls for operation
--------------------------
+-- Controls for operation (MAJOR change!)
+-----------------------------------------
 -- Left-click: dig one node.
--- Shift left-click: bring up User Options menu. (Or use Aux right-click in Android.)
--- Right-click: dig tunnel based on direction player pointing.
--- Shift right-click: cycle through vertical digging directions.
+-- Shift-left-click: dig tunnel based on direction player pointing.
+-- Right-click: cycle through vertical digging directions.
+-- Shift-right-click: bring up User Options menu.
+--
+-- In addition:
+--   Aux-left-click also digs tunnels (useful if flying).
+--   Aux-right-click also digs tunnels (needed for Android.)
 
 -- Icon display based on compassgps 2.7 and compass 0.5
 
@@ -367,6 +375,15 @@ local ok_to_tunnel = function(user, pos, name)
 	end
 end
 
+-- Support on_dignodes callbacks like used in borders mod for barriers.
+local call_on_dignodes = function(pos, node, user)
+	for _, callback in ipairs(core.registered_on_dignodes) do
+		local pos_copy = {x=pos.x, y=pos.y, z=pos.z}
+		local node_copy = {name=node.name, param1=node.param1, param2=node.param2}
+		callback(pos_copy, node_copy, user)
+	end
+end
+
 -- Lookup table to map direction to appropriate rotation for angled_stair_left nodes. 
 local astairs_lu = {
 	[-1] ={[2]=1,[6]=0,[10]=3,[14]=2},  -- down
@@ -381,42 +398,50 @@ region = {
 	[1] =  -- Air. Don't delete lights or track. (Works with torches, but not with ceiling mounted lamps.)
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
-				if not (name == "air" or is_light(name) or string.match(name, "dtrack")) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
+				if not (node.name == "air" or is_light(node.name) or string.match(node.name, "dtrack")) then
 					minetest.set_node(pos, {name = "air"})
+					call_on_dignodes(pos, node, user)
 				end
 			end
 		end,
 	[2] =  -- Ceiling.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
-				if string.match(name, "water") then  -- Always line water with glass.
+				if string.match(node.name, "water") then  -- Always line water with glass.
 					minetest.set_node(pos, {name = glass_walls})
+					call_on_dignodes(pos, node, user)
 				elseif user_config[pname].add_lined_tunnels and user_config[pname].digging_mode ~= 3 then  -- Line tunnel ...
-					if not (name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name)) then  -- except for these.
+					if not (node.name == "air" or node.name == glass_walls or node.name == "default:snow" or is_flammable(node.name)) then  -- except for these.
 						minetest.set_node(pos, {name = lining_material(user, pos)})
+						call_on_dignodes(pos, node, user)
 					end
 				else  -- Don't line tunnel, but convert sand to sandstone and gravel to cobble.
-					if string.match(name, "default:sand") then
+					if string.match(node.name, "default:sand") then
 						minetest.set_node(pos, {name = "default:sandstone"})
-					elseif string.match(name, "default:desert_sand") then
+						call_on_dignodes(pos, node, user)
+					elseif string.match(node.name, "default:desert_sand") then
 						minetest.set_node(pos, {name = "default:desert_sandstone"})
-					elseif string.match(name, "default:silver_sand") then
+						call_on_dignodes(pos, node, user)
+					elseif string.match(node.name, "default:silver_sand") then
 						minetest.set_node(pos, {name = "default:silver_sandstone"})
-					elseif string.match(name, "default:gravel") then
+						call_on_dignodes(pos, node, user)
+					elseif string.match(node.name, "default:gravel") then
 						minetest.set_node(pos, {name = "default:cobble"})
+						call_on_dignodes(pos, node, user)
 					end
 				end
 				if user_config[pname].clear_trees > 0 then  -- Check if need to clear tree cover above dig.
 					for i = y, clear_trees_max do
 						local posi = vector.add(pointed_thing.under, {x=x, y=i, z=z})
-						local namei = minetest.get_node(posi).name
-						if namei == "default:snow" or is_flammable(namei) then
+						local nodei = minetest.get_node(posi)
+						if nodei.name == "default:snow" or is_flammable(nodei.name) then
 							minetest.set_node(posi, {name = "air"})
+							call_on_dignodes(posi, nodei, user)
 						elseif namei ~= "air" then
 							break
 						end
@@ -427,14 +452,16 @@ region = {
 	[3] =  -- Side walls.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
-				if string.match(name, "water") then
+				if string.match(node.name, "water") then
 					minetest.set_node(pos, {name = glass_walls})  -- Always line water with glass.
+					call_on_dignodes(pos, node, user)
 				elseif user_config[pname].add_lined_tunnels and user_config[pname].digging_mode ~= 3 then  -- Line tunnel ...
-					if not (name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name) or string.match(name, "dtrack")) then  -- except for these.
+					if not (node.name == "air" or node.name == glass_walls or node.name == "default:snow" or is_flammable(node.name) or string.match(node.name, "dtrack")) then  -- except for these.
 						minetest.set_node(pos, {name = lining_material(user,pos)})
+						call_on_dignodes(pos, node, user)
 					end
 				end
 			end
@@ -442,18 +469,19 @@ region = {
 	[4] =  -- Temporary endcaps.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
-				if string.match(name, "water") then  -- Place temporary endcap if water.
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
+				if string.match(node.name, "water") then  -- Place temporary endcap if water.
 					minetest.set_node(pos, {name = glass_walls})
+					call_on_dignodes(pos, node, user)
 				end
 			end
 		end,
 	[5] =  -- Reference markers.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				-- Figure out what replacement material should be.
 				local rep_mat
@@ -464,11 +492,13 @@ region = {
 						rep_mat = lining_material(user, pos)
 					end
 					minetest.set_node(pos, {name = reference_marks})
+					call_on_dignodes(pos, node, user)
 					local meta = minetest.get_meta(pos)
 					meta:set_string("replace_with", rep_mat)
 				else  -- No refs.
-					if user_config[pname].add_floors or string.match(name, "water") or name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name) then
+					if user_config[pname].add_floors or string.match(node.name, "water") or node.name == "air" or node.name == glass_walls or node.name == "default:snow" or is_flammable(node.name) then
 						minetest.set_node(pos, {name = lining_material(user, pos)})
+						call_on_dignodes(pos, node, user)
 					end
 				end
 			end
@@ -476,18 +506,21 @@ region = {
 	[6] =  -- Embankment area.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_floors then  -- Going to set all.
 					if user_config[pname].add_embankment then
 						minetest.set_node(pos, {name = embankment, param2 = 42})
+						call_on_dignodes(pos, node, user)
 					else
 						minetest.set_node(pos, {name = lining_material(user, pos)})
+						call_on_dignodes(pos, node, user)
 					end
 				else  -- Only fill holes.
-					if string.match(name, "water") or name == "air" or name == glass_walls or name == "default:snow" or is_flammable(name) then
+					if string.match(node.name, "water") or node.name == "air" or node.name == glass_walls or node.name == "default:snow" or is_flammable(node.name) then
 						minetest.set_node(pos, {name = lining_material(user, pos)})
+						call_on_dignodes(pos, node, user)
 					end
 				end
 			end
@@ -495,21 +528,22 @@ region = {
 	[7] =  -- Wide floors. (starting to refine)
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_floors and user_config[pname].add_wide_floors then
-					local param2 = minetest.get_node(pos).param2
 					local pos0 = vector.add(pos, {x=0, y=-1, z=0})
 					local node0 = minetest.get_node(pos0)
 					if not ((node0.name == user_config[pname].coating_desert or node0.name == user_config[pname].coating_not_desert) and node0.param2 == 7) and  -- Exception to match diagonal up and down digging.
-							not (user_config[pname].add_embankment and ((name == embankment and param2 == 42) or name == reference_marks)) and  -- Don't overwrite embankment or refs in train mode.
-							not (user_config[pname].add_bike_ramps and name == reference_marks) then  -- Don't overwrite refs in bike mode.
+							not (user_config[pname].add_embankment and ((node.name == embankment and node.param2 == 42) or node.name == reference_marks)) and  -- Don't overwrite embankment or refs in train mode.
+							not (user_config[pname].add_bike_ramps and node.name == reference_marks) then  -- Don't overwrite refs in bike mode.
 						minetest.set_node(pos, {name = lining_material(user, pos), param2 = 7})
+						call_on_dignodes(pos, node, user)
 					end
 				else  -- Not wide. However, this makes double-wide glass when digging at water surface level.
-					if string.match(name, "water") then
+					if string.match(node.name, "water") then
 						minetest.set_node(pos, {name = glass_walls})
+						call_on_dignodes(pos, node, user)
 					end
 				end
 			end
@@ -517,9 +551,10 @@ region = {
 	[8] =  -- Underfloor, only used directly for slope up and slope down where embankment or brace is always needed.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
 				minetest.set_node(pos, {name = lining_material(user, pos)})
+				call_on_dignodes(pos, node, user)
 			end
 		end,
 	[10] =  -- Bike slope down narrow (air or angled slab).
@@ -538,14 +573,16 @@ region = {
 	[11] =  -- Bike slope up or down narrow (air or angled slab).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps and angledstairs_exists then
 					if is_desert(user, pos) then
 						minetest.set_node(pos, {name = angled_slab_desert, param2 = astairs_lu[dir.vert][dir.horiz]})
+						call_on_dignodes(pos, node, user)
 					else
 						minetest.set_node(pos, {name = angled_slab_not_desert, param2 = astairs_lu[dir.vert][dir.horiz]})
+						call_on_dignodes(pos, node, user)
 					end
 				else
 					region[1](x, y, z, dir, user, pointed_thing)
@@ -555,21 +592,25 @@ region = {
 	[12] =  -- Bike slope up or down narrow (slab or angled stair).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps then
 					if angledstairs_exists and math.fmod(dir.horiz, 4) == 2 then  -- diagonal slope
 						if is_desert(user, pos) then
 							minetest.set_node(pos, {name = angled_stair_desert, param2 = astairs_lu[dir.vert][dir.horiz]})
+							call_on_dignodes(pos, node, user)
 						else
 							minetest.set_node(pos, {name = angled_stair_not_desert, param2 = astairs_lu[dir.vert][dir.horiz]})
+							call_on_dignodes(pos, node, user)
 						end
 					else  -- no angledstairs
 						if is_desert(user, pos) then
 							minetest.set_node(pos, {name = slab_desert, param2 = 2})
+							call_on_dignodes(pos, node, user)
 						else
 							minetest.set_node(pos, {name = slab_not_desert, param2 = 2})
+							call_on_dignodes(pos, node, user)
 						end
 					end
 				else
@@ -580,14 +621,16 @@ region = {
 	[13] =  -- Bike slope wide up or down (slabs).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps and user_config[pname].add_wide_floors then
 					if is_desert(user, pos) then
 						minetest.set_node(pos, {name = slab_desert, param2 = 2})
+						call_on_dignodes(pos, node, user)
 					else
 						minetest.set_node(pos, {name = slab_not_desert, param2 = 2})
+						call_on_dignodes(pos, node, user)
 					end
 				else
 					region[1](x, y, z, dir, user, pointed_thing)
@@ -634,15 +677,17 @@ region = {
 	[37] =  -- Floor under wall. Only place floor under wall if wall right above floor.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
-			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			local node = minetest.get_node(pos)
+			if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				local pos1 = vector.add(pos, {x=0, y=1, z=0})
 				local name1 = minetest.get_node(pos1).name
-				if string.match(name, "water") then
+				if string.match(node.name, "water") then
 					minetest.set_node(pos, {name = glass_walls})
+					call_on_dignodes(pos, node, user)
 				elseif name1 == user_config[pname].coating_not_desert or name1 == user_config[pname].coating_desert then
 					minetest.set_node(pos, {name = lining_material(user, pos)})
+					call_on_dignodes(pos, node, user)
 				end
 			end
 		end,
@@ -907,32 +952,39 @@ for i,img in ipairs(images) do
 		stack_max = 1,
 		range = 7.0,
 
-		-- Dig single node with left mouse click.
+		-- Left mouse: Dig single node or dig tunnel.
 		on_use = function(itemstack, player, pointed_thing)
 			local pname = player:get_player_name()
 			local pos = pointed_thing.under
 			local key_stats = player:get_player_control()
-			if key_stats.sneak then  -- Bring up User Options formspec.
-				display_menu(player)
-			else  -- Dig single node, if pointing to one
-				if pos ~= nil then
+			if key_stats.sneak or key_stats.aux1 then  -- With sneak or aux1, dig tunnel
+				-- if advtrains_track, I lower positions of pointed_thing to right below track, but keep name the same. Same with snow cover.
+				local name = minetest.get_node(pointed_thing.under).name
+				-- if minetest.registered_nodes[name].groups.advtrains_track == 1 then
+				if string.match(name, "dtrack") or name == "default:snow" or name == angled_slab_not_desert or name == angled_slab_desert then
+					pointed_thing.under = vector.add(pointed_thing.under, {x=0, y=-1, z=0})
+					--pointed_thing.above = vector.add(pointed_thing.above, {x=0, y=-1, z=0})  -- don't currently use this
+				end
+				minetest.sound_play("default_dig_dig_immediate", {pos=pointed_thing.under, max_hear_distance = 8, gain = 1.0})
+				dig_tunnel(i-1, player, pointed_thing)
+				if not user_config[pname].continuous_updown then
+					tunnelmaker[pname].updown = 0   -- reset to horizontal after one use
+				end
+			else  -- No modifiers, dig single node, if pointing to one
+				if pos ~= nil and minetest.check_player_privs(player, "tunneling") then
 					minetest.node_dig(pos, minetest.get_node(pos), player)
 					minetest.sound_play("default_dig_dig_immediate", {pos=pos, max_hear_distance = 8, gain = 0.5})
 				end
 			end
 		end,
 
-		-- Dig tunnel with right mouse click (double tap on android)
+		-- Right mouse: Toggle up/down or bring up User Options menu. (Also dig tunnel for android.)
 		on_place = function(itemstack, placer, pointed_thing)
 			local pname = placer:get_player_name()
 			local key_stats = placer:get_player_control()
-			if key_stats.sneak then  -- Toggle up/down digging direction.
-				tunnelmaker[pname].updown = (tunnelmaker[pname].updown + 1) % 3
-				tunnelmaker[pname].lastpos = { x = placer:get_pos().x, y = placer:get_pos().y, z = placer:get_pos().z }
-			elseif key_stats.aux1 then  -- Bring up User Options menu. Alternative for Android.
+			if key_stats.sneak then  -- With sneak, bring up User Options menu.
 				display_menu(placer)
-			-- Otherwise dig tunnel based on direction pointed and current updown direction
-			elseif pointed_thing.type=="node" then
+			elseif key_stats.aux1 and pointed_thing.type=="node" then  -- With aux1, dig tunnel.
 				-- if advtrains_track, I lower positions of pointed_thing to right below track, but keep name the same. Same with snow cover.
 				local name = minetest.get_node(pointed_thing.under).name
 				-- if minetest.registered_nodes[name].groups.advtrains_track == 1 then
@@ -945,12 +997,16 @@ for i,img in ipairs(images) do
 				if not user_config[pname].continuous_updown then
 					tunnelmaker[pname].updown = 0   -- reset to horizontal after one use
 				end
+			else  -- No modifiers, toggle up/down digging directions.
+				tunnelmaker[pname].updown = (tunnelmaker[pname].updown + 1) % 3
+				tunnelmaker[pname].lastpos = { x = placer:get_pos().x, y = placer:get_pos().y, z = placer:get_pos().z }
 			end
 		end,
 
-		-- Bring up User Options menu, when not pointing to anything. Alternative for Android.
+		-- Also bring up User Options menu, when not pointing to anything.
 		on_secondary_use = function(itemstack, placer, pointed_thing)
-			if placer:get_player_control().aux1 then
+			local key_stats = placer:get_player_control()
+			if key_stats.sneak then
 				display_menu(placer)
 			end
 		end,

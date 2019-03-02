@@ -8,7 +8,9 @@ A Minetest Mod to easily create arbitrarily curved tunnels, pathways, and bridge
 By David G (kestral246@gmail.com), with significant contributions by Mikola.
 
 Warning: Version 2 only supports Minetest 5.0+.
----------------------------------------------------
+-----------------------------------------------
+In addition there's been a MAJOR change with controls.
+------------------------------------------------------
 For Minetest 0.4.x, use the git branch legacy, or the following zip file: [tunnelmaker-legacy.zip](https://github.com/kestral246/tunnelmaker/archive/legacy.zip).
 
 Features
@@ -28,12 +30,19 @@ Features
 
 ![Bike path up mountain](images/bike_path.png "Bike path up mountain")
 
-Controls
---------
+Controls (Caution MAJOR change!)
+--------------------------------
 - **Left-click:** Super dig one node. One click digs any node (non-repeating) and places it in player's inventory. However, it can't be used to pick up dropped items.
-- **Shift-left-click:** Bring up User Options menu (see below). Can also use Aux-right-click, which is currently needed for Android.
-- **Right-click:** Dig tunnel in direction player pointed. Note that this won't place any of the dug nodes in player's inventory.
-- **Shift-right-click:** Cycle through vertical digging modes, up, down, and horizontal.
+- **Shift-left-click:** Dig tunnel in direction player pointed. Note that this won't place any of the dug nodes in player's inventory.
+- **Right-click:** Cycle through vertical digging modes, up, down, and horizontal.
+- **Shift-right-click:** Bring up User Options menu (see below).
+
+In addition:
+
+- **Aux-left-click:** Also digs tunnel (useful if flying).
+- **Aux-right-click:** Also digs tunnel (needed for Android).
+
+The reason for this change is that while updating this mod I had to test it a lot, and I've lost track of the number of times I've accidentally pressed right-click and dug a tunnel when I didn't want to. The only solution was to move tunnel digging to another key combination.
 
 How to enable
 -------------
@@ -47,7 +56,7 @@ How to dig
 
 - Move to digging location and highlight node at ground level. (Gray node in diagrams marked with an '×'.)
 - Point player in desired digging direction. (Inventory icon will change to show current direction.)
-- Right-click mouse to dig tunnel.
+- Hold down shift key while left-clicking mouse to dig tunnel.
 
 
 Digging for slopes
@@ -56,15 +65,15 @@ Digging for slopes
 
 - Move to digging location and highlight node at ground level.
 - Point player in desired digging direction.
-- Hold sneak key (shift on pc) and right-click mouse to select digging mode.  Inventory icon will cycle through possible modes with each click:  'U' for digging up, 'D' for digging down, and no letter for default horizontal.
-- Release sneak key and right-click mouse to dig tunnel.
+- Right-click mouse to select digging mode.  Inventory icon will cycle through possible modes with each click:  'U' for digging up, 'D' for digging down, and no letter for default horizontal.
+- Shift-left-click mouse to dig tunnel.
 - There is a user option to control whether to reset direction after each dig or not (see below).
 
 ![Tunnelmaker Icons](images/icons.png "Tunnelmaker Icons")
 
 User Options menu
 ----------------
-Use shift-left-click to bring up this menu (or aux-right-click if using Android).
+Use shift-right-click to bring up this menu.
 
 ![Tunnelmaker User Options](images/user_options.gif "Tunnelmaker User Options")
 
