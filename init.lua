@@ -6,6 +6,10 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.0-beta-16 - 2019-03-03
+--   Add support to specify lighting param2 in minetest.conf.
+--   This allows using lights such as moreblocks:slab_meselamp_1,20
+--   which gives a param2 = 20, so it's oriented properly on ceiling.
 -- Version 2.0-beta-15 - 2019-03-02
 --   MAJOR change with controls (see below for details).
 --   Support on_dignodes callbacks like used in borders mod for barriers.
@@ -61,7 +65,16 @@ local continuous_updown_default = minetest.settings:get_bool("continuous_updown_
 local add_desert_material = minetest.settings:get_bool("add_desert_material", false)
 
 -- Can use other lights in tunnels instead of torches.
-local lighting = minetest.settings:get("tunnel_lights") or "default:torch"
+local lighting_raw = minetest.settings:get("tunnel_lights") or "default:torch"
+
+-- Determine is light specifies param2. This allows lights such as moreblocks:slab_meselamp_1,20 where ,20 specifies ceiling orientation in param2
+local lighting = lighting_raw
+local lighting_p2 = 0
+local p2 = string.find(lighting_raw, ',')
+if p2 ~= nil then
+	lighting = string.sub(lighting_raw, 1, p2-1)
+	lighting_p2 = tonumber(string.sub(lighting_raw, p2+1) or 0)
+end
 
 -- Set height for train tunnels (5 to 8). Currently matching version 1.
 local tunnel_height_train = tonumber(minetest.settings:get("train_tunnel_height") or 5)
@@ -75,7 +88,6 @@ local add_arches_config = minetest.settings:get_bool("train_tunnel_arches", true
 -- Tunnel height, can vary for each digging mode.
 local tunnel_height_general = 4
 local tunnel_height_bike = 5
-
 
 -- Material for walls and floors (general and train path beyond embankment).
 local tunnel_material = "default:stone"
@@ -713,12 +725,12 @@ region = {
 						local name2 = minetest.get_node(vector.add(pos1, {x=0, y=1, z=0})).name
 						if (name2 == user_config[pname].coating_not_desert or name2 == "default:stone" or name2 == user_config[pname].coating_desert or name2 == "default:desert_stone" or name2 == glass_walls) and
 									minetest.find_node_near(pos1, lighting_search_radius, {name = lighting}) == nil then
-							minetest.set_node(pos1, {name = lighting})
+							minetest.set_node(pos1, {name = lighting, param2 = lighting_p2})
 						end
 					else  -- Regular height ceiling.
 						if (name1 == user_config[pname].coating_not_desert or name1 == "default:stone" or name1 == user_config[pname].coating_desert or name1 == "default:desert_stone" or name1 == glass_walls) and
 								minetest.find_node_near(pos, lighting_search_radius, {name = lighting}) == nil then
-							minetest.set_node(pos, {name = lighting})
+							minetest.set_node(pos, {name = lighting, param2 = lighting_p2})
 						end
 					end
 				end
