@@ -1,0 +1,15 @@
+# textdomain: tunnelmaker
+# Translated by kestral
+Tunnelmaker - User Options=Tunnelmaker - Options utilisateur
+General purpose mode=Usage général
+Advanced trains mode=Trains avancés
+Bike path mode=Pistes cyclables
+Wide paths / lined tunnels=Chemins larges / tunnels doublés
+Continuous up/down digging=Creuser en haut/en bas continuellment
+Clear tree cover=Enlever la couverture d'arbre
+Remove reference nodes=Enlever les nodes de références
+Lock desert mode to:=Fixer le mode de désert à:
+Desert=Désert
+Non-desert=Non-désert
+Exit=Quitter
+Automatically disabled after 2 min.=Désactiver automatiquement après 2 min.

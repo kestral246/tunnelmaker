@@ -1,0 +1,15 @@
+# textdomain: tunnelmaker
+# Translated by Mikola
+Tunnelmaker - User Options=Настройки туннелепроходчика
+General purpose mode=Обычный туннель
+Advanced trains mode=Железнодорожный туннель
+Bike path mode=Сглаженный туннель
+Wide paths / lined tunnels=Широкие дорожки / облицованные туннели
+Continuous up/down digging=Непрерывное копание вверх / вниз
+Clear tree cover=Спилить растительность над дорогой
+Remove reference nodes=Убрать разметку на дороге
+Lock desert mode to:=Блокировка режима пустыни для:
+Desert=Пустыня
+Non-desert=Вне пустыни
+Exit=Закрыть
+Automatically disabled after 2 min.=Автоматически отключается через 2 минуты.
