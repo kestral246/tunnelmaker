@@ -20,6 +20,8 @@ add_desert_material (Add desert material) bool false
 
 #    Type of light to use in tunnels.
 #    (default = default:torch)
+#    This can optionally include ",int" at end to specify param2 value to use if lamp needs to be rotated to work on ceiling.
+#    Example is moreblocks:slab_meselamp_1,20 to give a nice modern looking lamp.
 tunnel_lights (Tunnel lights) string default:torch
 
 #    Set height for train tunnels.

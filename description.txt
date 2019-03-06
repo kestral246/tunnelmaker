@@ -1,2 +1,0 @@
-Easily dig arbitrarily curved tunnels.
-See README.md to use.

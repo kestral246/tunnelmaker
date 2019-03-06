@@ -7,13 +7,22 @@ A Minetest Mod to easily create arbitrarily curved tunnels, pathways, and bridge
 
 By David G (kestral246@gmail.com), with significant contributions by Mikola.
 
-Warning: Version 2 only supports Minetest 5.0+.
+Warning: Version 2.0 only supports Minetest 5.0+.
 -----------------------------------------------
-In addition there's been a MAJOR change with controls.
-------------------------------------------------------
 For Minetest 0.4.x, use the git branch legacy, or the following zip file: [tunnelmaker-legacy.zip](https://github.com/kestral246/tunnelmaker/archive/legacy.zip).
 
-Features
+Quick Use Guide
+---------------
+- Works in creative or survival mode, but must have "tunneling" privileges to use. However, no crafting recipe so needs to be given to player.
+- Left-click mouse to dig just about any node with one click.
+- To dig train tunnel:
+    - Point cursor at ground level.
+    - Point character in direction to dig (inventory icon will change to show direction).
+    - Shift-left-click mouse to dig tunnel.
+    - Note that reference nodes are placed in the ground. Just follow these to make nicely curved tunnels. Don't worry, they can be easily removes when done digging.
+- Shift-right-click brings up User Options menu.
+
+Features *(Does way more than just dig tunnels!)*
 --------
 - Create paths, bridges, and tunnels in all sixteen possible advtrains track directions with one click.
 - Also digs up or down in the eight possible advtrains slope track directions.
@@ -30,8 +39,8 @@ Features
 
 ![Bike path up mountain](images/bike_path.png "Bike path up mountain")
 
-Controls (Caution MAJOR change!)
---------------------------------
+Controls (complete list)
+------------------------
 - **Left-click:** Super dig one node. One click digs any node (non-repeating) and places it in player's inventory. However, it can't be used to pick up dropped items.
 - **Shift-left-click:** Dig tunnel in direction player pointed. Note that this won't place any of the dug nodes in player's inventory.
 - **Right-click:** Cycle through vertical digging modes, up, down, and horizontal.
@@ -41,8 +50,6 @@ In addition:
 
 - **Aux-left-click:** Also digs tunnel (useful if flying).
 - **Aux-right-click:** Also digs tunnel (needed for Android).
-
-The reason for this change is that while updating this mod I had to test it a lot, and I've lost track of the number of times I've accidentally pressed right-click and dug a tunnel when I didn't want to. The only solution was to move tunnel digging to another key combination.
 
 How to enable
 -------------
@@ -85,6 +92,14 @@ Descriptions of all the options:
 - **Clear tree cover** Remove all plant material above dig up to 30 nodes above ground. CPU intensive, so shuts off after two minutes.
 - **Remove reference nodes** Easily remove reference nodes by walking over them. Also shuts off after two minutes.
 - **Lock desert mode to: either "Desert" or "Non-desert"** Option only available when "add_desert_material = true" has been added to minetest.conf. Overrides use of desert materials in desert biomes. Useful for transition regions.
+
+minetest.conf options
+---------------------
+- Several options to change defaults for the User Options menu. See settingtypes.txt for details.
+- **add_desert_material** (default = false): When enabled, this mod will use desert materials when digging in desert biomes. This will also add an additional entry to the User Options menu.
+- **tunnel_lights** (default = desert:torch): Use this to change type of light placed in tunnels. Some examples are: default:mese_post_light; morelights_vintage:lantern_c; ilights:light; and moreblocks:slab_meselamp_1,20. This last one requires the ",20" on the end, which defines the param2 rotation needed to put the lamp on the ceiling.
+- **train_tunnel_height** (default = 5): Can increase train tunnels up to a height of 8.
+- **train_tunnel_arches** (default = true): Disable to get rid of arches to give more modern rectangular tunnels.
 
 Advtrains digging reference
 ---------------------------
