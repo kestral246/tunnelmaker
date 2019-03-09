@@ -6,7 +6,9 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0 - 2019-03-04
+-- Version 2.0.1 - 2019-03-08
+--   Fix bug when tunneling without pointing to node.
+--   Reverting to beta controls is being considered.
 
 -- New controls for operation
 -----------------------------
@@ -949,7 +951,7 @@ for i,img in ipairs(images) do
 				local pname = player:get_player_name()
 				local pos = pointed_thing.under
 				local key_stats = player:get_player_control()
-				if key_stats.sneak or key_stats.aux1 then  -- With sneak or aux1, dig tunnel
+				if pos ~= nil and (key_stats.sneak or key_stats.aux1) then  -- With sneak or aux1, dig tunnel
 					-- if advtrains_track, I lower positions of pointed_thing to right below track, but keep name the same. Same with snow cover.
 					local name = minetest.get_node(pointed_thing.under).name
 					-- if minetest.registered_nodes[name].groups.advtrains_track == 1 then
