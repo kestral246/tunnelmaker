@@ -6,20 +6,15 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0.1 - 2019-03-08
---   Fix bug when tunneling without pointing to node.
---   Reverting to beta controls is being considered.
+-- Version 2.0.2 - 2019-03-09
+--   Revert back to classic controls.
 
--- New controls for operation
------------------------------
+-- Controls for operation
+-------------------------
 -- Left-click: dig one node.
--- Shift-left-click: dig tunnel based on direction player pointing.
--- Right-click: cycle through vertical digging directions.
--- Shift-right-click: bring up User Options menu.
---
--- In addition:
---   Aux-left-click also digs tunnels (useful if flying).
---   Aux-right-click also digs tunnels (needed for Android.)
+-- Shift left-click: bring up User Options menu. (Or use Aux right-click in Android.)
+-- Right-click: dig tunnel based on direction player pointing.
+-- Shift right-click: cycle through vertical digging directions.
 
 -- Icon display based on compassgps 2.7 and compass 0.5
 
@@ -945,26 +940,15 @@ for i,img in ipairs(images) do
 		stack_max = 1,
 		range = 7.0,
 
-		-- Left mouse: Dig single node or dig tunnel.
+		-- Dig single node with left mouse click.
 		on_use = function(itemstack, player, pointed_thing)
 			if minetest.check_player_privs(player, "tunneling") then  -- Must have tunneling privs.
 				local pname = player:get_player_name()
 				local pos = pointed_thing.under
 				local key_stats = player:get_player_control()
-				if pos ~= nil and (key_stats.sneak or key_stats.aux1) then  -- With sneak or aux1, dig tunnel
-					-- if advtrains_track, I lower positions of pointed_thing to right below track, but keep name the same. Same with snow cover.
-					local name = minetest.get_node(pointed_thing.under).name
-					-- if minetest.registered_nodes[name].groups.advtrains_track == 1 then
-					if string.match(name, "dtrack") or name == "default:snow" or name == angled_slab_not_desert or name == angled_slab_desert then
-						pointed_thing.under = vector.add(pointed_thing.under, {x=0, y=-1, z=0})
-						--pointed_thing.above = vector.add(pointed_thing.above, {x=0, y=-1, z=0})  -- don't currently use this
-					end
-					minetest.sound_play("default_dig_dig_immediate", {pos=pointed_thing.under, max_hear_distance = 8, gain = 1.0})
-					dig_tunnel(i-1, player, pointed_thing)
-					if not user_config[pname].continuous_updown then
-						tunnelmaker[pname].updown = 0   -- reset to horizontal after one use
-					end
-				else  -- No modifiers, dig single node, if pointing to one
+				if key_stats.sneak then  -- Bring up User Options formspec.
+					display_menu(player)
+				else  -- Dig single node, if pointing to one
 					if pos ~= nil then
 						minetest.node_dig(pos, minetest.get_node(pos), player)
 						minetest.sound_play("default_dig_dig_immediate", {pos=pos, max_hear_distance = 8, gain = 0.5})
@@ -973,14 +957,18 @@ for i,img in ipairs(images) do
 			end
 		end,
 
-		-- Right mouse: Toggle up/down or bring up User Options menu. (Also dig tunnel for android.)
+		-- Dig tunnel with right mouse click (double tap on android)
 		on_place = function(itemstack, placer, pointed_thing)
 			if minetest.check_player_privs(placer, "tunneling") then  -- Must have tunneling privs.
 				local pname = placer:get_player_name()
 				local key_stats = placer:get_player_control()
-				if key_stats.sneak then  -- With sneak, bring up User Options menu.
+				if key_stats.sneak then  -- Toggle up/down digging direction.
+					tunnelmaker[pname].updown = (tunnelmaker[pname].updown + 1) % 3
+					tunnelmaker[pname].lastpos = { x = placer:get_pos().x, y = placer:get_pos().y, z = placer:get_pos().z }
+				elseif key_stats.aux1 then  -- Bring up User Options menu. Alternative for Android.
 					display_menu(placer)
-				elseif key_stats.aux1 and pointed_thing.type=="node" then  -- With aux1, dig tunnel.
+				-- Otherwise dig tunnel based on direction pointed and current updown direction
+				elseif pointed_thing.type=="node" then
 					-- if advtrains_track, I lower positions of pointed_thing to right below track, but keep name the same. Same with snow cover.
 					local name = minetest.get_node(pointed_thing.under).name
 					-- if minetest.registered_nodes[name].groups.advtrains_track == 1 then
@@ -993,18 +981,14 @@ for i,img in ipairs(images) do
 					if not user_config[pname].continuous_updown then
 						tunnelmaker[pname].updown = 0   -- reset to horizontal after one use
 					end
-				else  -- No modifiers, toggle up/down digging directions.
-					tunnelmaker[pname].updown = (tunnelmaker[pname].updown + 1) % 3
-					tunnelmaker[pname].lastpos = { x = placer:get_pos().x, y = placer:get_pos().y, z = placer:get_pos().z }
 				end
 			end
 		end,
 
-		-- Also bring up User Options menu, when not pointing to anything.
+		-- Also bring up User Options menu, when not pointing to anything. Alternative for Android.
 		on_secondary_use = function(itemstack, placer, pointed_thing)
 			if minetest.check_player_privs(placer, "tunneling") then  -- Must have tunneling privs.
-				local key_stats = placer:get_player_control()
-				if key_stats.sneak then
+				if placer:get_player_control().aux1 then
 					display_menu(placer)
 				end
 			end

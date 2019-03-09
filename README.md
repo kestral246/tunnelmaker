@@ -18,9 +18,9 @@ Quick Use Guide
 - To dig train tunnel:
     - Point cursor at ground level.
     - Point character in direction to dig (inventory icon will change to show direction).
-    - Shift-left-click mouse to dig tunnel.
+    - Right-click mouse to dig tunnel.
     - Note that reference nodes are placed in the ground. Just follow these to make nicely curved tunnels. Don't worry, they can be easily removes when done digging.
-- Shift-right-click brings up User Options menu.
+- Shift-left-click brings up User Options menu.
 
 Features *(Does way more than just dig tunnels!)*
 --------
@@ -39,17 +39,12 @@ Features *(Does way more than just dig tunnels!)*
 
 ![Bike path up mountain](images/bike_path.png "Bike path up mountain")
 
-Controls (complete list)
-------------------------
+Controls *(Revert back to classic controls.)*
+----------------------------------------------
 - **Left-click:** Super dig one node. One click digs any node (non-repeating) and places it in player's inventory. However, it can't be used to pick up dropped items.
-- **Shift-left-click:** Dig tunnel in direction player pointed. Note that this won't place any of the dug nodes in player's inventory.
-- **Right-click:** Cycle through vertical digging modes, up, down, and horizontal.
-- **Shift-right-click:** Bring up User Options menu (see below).
-
-In addition:
-
-- **Aux-left-click:** Also digs tunnel (useful if flying).
-- **Aux-right-click:** Also digs tunnel (needed for Android).
+- **Shift-left-click:** Bring up User Options menu. Can also use Aux-right-click for Android.
+- **Right-click:** - Dig tunnel in direction player pointed. Note that this won't place any of the dug nodes in player's inventory.
+- **Shift-right-click:** Cycle through vertical digging modes, up, down, and horizontal.
 
 How to enable
 -------------
@@ -63,7 +58,7 @@ How to dig
 
 - Move to digging location and highlight node at ground level. (Gray node in diagrams marked with an '×'.)
 - Point player in desired digging direction. (Inventory icon will change to show current direction.)
-- Hold down shift key while left-clicking mouse to dig tunnel.
+- Right-click mouse to dig tunnel.
 
 
 Digging for slopes
@@ -72,15 +67,15 @@ Digging for slopes
 
 - Move to digging location and highlight node at ground level.
 - Point player in desired digging direction.
-- Right-click mouse to select digging mode.  Inventory icon will cycle through possible modes with each click:  'U' for digging up, 'D' for digging down, and no letter for default horizontal.
-- Shift-left-click mouse to dig tunnel.
+- Shift-right-click mouse to select vertical digging mode.  Inventory icon will cycle through possible modes with each click:  'U' for digging up, 'D' for digging down, and no letter for default horizontal.
+- Right-click mouse to dig tunnel.
 - There is a user option to control whether to reset direction after each dig or not (see below).
 
 ![Tunnelmaker Icons](images/icons.png "Tunnelmaker Icons")
 
 User Options menu
 ----------------
-Use shift-right-click to bring up this menu.
+Shift-left-click to bring up this menu.
 
 ![Tunnelmaker User Options](images/user_options.gif "Tunnelmaker User Options")
 
