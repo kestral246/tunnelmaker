@@ -6,8 +6,8 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0.2 - 2019-03-09
---   Revert back to classic controls.
+-- Version 2.0.3 - 2019-03-12
+--   Allow digging unknown nodes.
 
 -- Controls for operation
 -------------------------
@@ -350,16 +350,15 @@ end
 -- Combine all the checks to determine if digging should be allowed.
 -- Currently supports area protection, unbreakable, and can_dig(). Others TBD.
 local ok_to_tunnel = function(user, pos, name)
-	local ndef = minetest.registered_nodes[name]
 	if minetest.is_protected(pos, user) then
 		--minetest.debug("Protection error")
 		return false
 	elseif not (minetest.get_item_group(name, "unbreakable") == 0) then  -- Unbreakable
 		--minetest.debug("Unbreakable node = "..name)
 		return false
-	elseif ndef.can_dig ~= nil then
+	elseif minetest.registered_nodes[name] and minetest.registered_nodes[name].can_dig ~= nil then
 		--minetest.debug("Test can_dig = "..name)
-		return ndef.can_dig(pos, user)
+		return minetest.registered_nodes[name].can_dig(pos, user)
 	else
 		return true
 	end
