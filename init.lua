@@ -6,8 +6,9 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0.3 - 2019-03-12
---   Allow digging unknown nodes.
+-- Version 2.0.4 - 2019-03-14
+--   Remove all references to morebl*ks mod.
+--   This mod will rename all default stairs nodes, so don't use it if you care about stairs.
 
 -- Controls for operation
 -------------------------
@@ -45,7 +46,7 @@ local add_desert_material = minetest.settings:get_bool("add_desert_material", fa
 -- Can use other lights in tunnels instead of torches.
 local lighting_raw = minetest.settings:get("tunnel_lights") or "default:torch"
 
--- Determine is light specifies param2. This allows lights such as moreblocks:slab_meselamp_1,20 where ,20 specifies ceiling orientation in param2
+-- Determine is light specifies param2. This allows lights such as mydefaultlights:ceiling_light_white,20 where ,20 specifies ceiling orientation in param2
 local lighting = lighting_raw
 local lighting_p2 = 0
 local p2 = string.find(lighting_raw, ',')

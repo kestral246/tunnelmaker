@@ -92,7 +92,7 @@ minetest.conf options
 ---------------------
 - Several options to change defaults for the User Options menu. See settingtypes.txt for details.
 - **add_desert_material** (default = false): When enabled, this mod will use desert materials when digging in desert biomes. This will also add an additional entry to the User Options menu.
-- **tunnel_lights** (default = desert:torch): Use this to change type of light placed in tunnels. Some examples are: default:mese_post_light; morelights_vintage:lantern_c; ilights:light; and moreblocks:slab_meselamp_1,20. This last one requires the ",20" on the end, which defines the param2 rotation needed to put the lamp on the ceiling.
+- **tunnel_lights** (default = desert:torch): Use this to change type of light placed in tunnels. Some examples are: default:mese_post_light; morelights_vintage:lantern_c; ilights:light; and mydefaultlights:ceiling_light_white,20. This last one requires the ",20" on the end, which defines the param2 rotation needed to put the lamp on the ceiling.
 - **train_tunnel_height** (default = 5): Can increase train tunnels up to a height of 8.
 - **train_tunnel_arches** (default = true): Disable to get rid of arches to give more modern rectangular tunnels.
 
