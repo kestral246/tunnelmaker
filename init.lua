@@ -6,9 +6,8 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0.4 - 2019-03-14
---   Remove all references to morebl*ks mod.
---   This mod will rename all default stairs nodes, so don't use it if you care about stairs.
+-- Version 2.0.5 - 2019-03-22
+--   Update documentation.
 
 -- Controls for operation
 -------------------------
@@ -30,6 +29,7 @@
 -- User Options defaults (for minetest.conf)
 -------------------------------------------
 -- Initial digging mode for User Options (1, 2, or 3).
+-- 1 = General purpose, 2 = Advanced trains, 3 = Bike paths.
 local tunnel_mode_default = tonumber(minetest.settings:get("tunnel_digging_mode") or 2)
 
 -- Train tunnels can be lined with a coating.

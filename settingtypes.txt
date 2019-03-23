@@ -2,6 +2,7 @@
 # minetest.conf
 
 #    Default for digging mode in User config menu.
+#    1 = General purpose, 2 = Advanced trains, 3 = Bike paths.
 #    (default = 2)
 tunnel_digging_mode (Tunnel digging mode) int 2 1 3
 

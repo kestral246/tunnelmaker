@@ -13,7 +13,8 @@ For Minetest 0.4.x, use the git branch legacy, or the following zip file: [tunne
 
 Quick Use Guide
 ---------------
-- Works in creative or survival mode, but must have "tunneling" privileges to use. However, no crafting recipe so needs to be given to player.
+- Requires "tunneling" privileges to use: *(/grant &lt;player&gt; tunneling)*.
+- No crafting recipe: *(/give &lt;player&gt; tunnelmaker:tool1)*.
 - Left-click mouse to dig just about any node with one click.
 - To dig train tunnel:
     - Point cursor at ground level.
@@ -26,10 +27,11 @@ Features *(Does way more than just dig tunnels!)*
 --------
 - Create paths, bridges, and tunnels in all sixteen possible advtrains track directions with one click.
 - Also digs up or down in the eight possible advtrains slope track directions.
-- Digging mode and options can be set using new User Options menu.
-- Supports Advanced trains mod with gravel embankment, arched and optionally lined tunnels, and two widths of bridges.
-- Supports Bike mod with two widths of cobblestone pathways and bridges, along with unlined tunnels.
-- Supports general excavation with unlined and lined tunnels.
+- New User Options menu to set digging mode and other options.
+- Mode 1: General purpose excavation with unlined and lined tunnels.
+- Mode 2: Advanced trains mod with gravel embankment, arched and optionally lined tunnels, and two widths of bridges.
+- Mode 3: Bike mod with two widths of cobblestone pathways and bridges, along with unlined tunnels.
+- Supports 
 - Adds reference nodes to help digging and laying advtrains track—now easy to remove when done.
 - Adds glass enclosure when in water to create water tunnels.
 - Requires "tunneling" privilege, and checks protections before digging.
@@ -39,18 +41,18 @@ Features *(Does way more than just dig tunnels!)*
 
 ![Bike path up mountain](images/bike_path.png "Bike path up mountain")
 
-Controls *(Revert back to classic controls.)*
-----------------------------------------------
-- **Left-click:** Super dig one node. One click digs any node (non-repeating) and places it in player's inventory. However, it can't be used to pick up dropped items.
-- **Shift-left-click:** Bring up User Options menu. Can also use Aux-right-click for Android.
+Controls
+--------
+- **Left-click:** Super dig one node. One click digs nearly any node (non-repeating) and places it in player's inventory.
+- **Shift-left-click:** Bring up User Options menu. (Can also use Aux-right-click for Android.)
 - **Right-click:** - Dig tunnel in direction player pointed. Note that this won't place any of the dug nodes in player's inventory.
 - **Shift-right-click:** Cycle through vertical digging modes, up, down, and horizontal.
 
 How to enable
 -------------
 - Install tunnelmaker mod, requires default and stairs. For nicer bike path ramps, I recommend installing the angledstairs mod, which was used for the picture above, but it's not required.
-- Grant player "tunneling" privilege (/grant &lt;player&gt; tunneling).
-- To give player a tunnelmaker tool use (/give &lt;player&gt; tunnelmaker:tool1).
+- Grant player "tunneling" privilege *(/grant &lt;player&gt; tunneling)*.
+- To give player a tunnelmaker tool use *(/give &lt;player&gt; tunnelmaker:tool1)*.
 
 How to dig
 ----------
