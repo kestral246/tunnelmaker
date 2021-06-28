@@ -6,8 +6,8 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0.5 - 2019-03-22
---   Update documentation.
+-- Version 2.0.6 - 2021-06-27
+--   Fix area protection checks.
 
 -- Controls for operation
 -------------------------
@@ -351,7 +351,7 @@ end
 -- Combine all the checks to determine if digging should be allowed.
 -- Currently supports area protection, unbreakable, and can_dig(). Others TBD.
 local ok_to_tunnel = function(user, pos, name)
-	if minetest.is_protected(pos, user) then
+	if minetest.is_protected(pos, user:get_player_name()) then
 		--minetest.debug("Protection error")
 		return false
 	elseif not (minetest.get_item_group(name, "unbreakable") == 0) then  -- Unbreakable
