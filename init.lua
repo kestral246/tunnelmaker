@@ -6,8 +6,10 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
--- Version 2.0.6 - 2021-06-27
---   Fix area protection checks.
+-- Version 2.1.0 - 2021-07-02
+--   Perform protection checks on all nodes before digging tunnel.
+--   Perform protection checks during clear tree cover.
+--   Fix protection check while removing reference nodes.
 
 -- Controls for operation
 -------------------------
@@ -23,7 +25,7 @@
 -- distributed without any warranty.
 
 -- You should have received a copy of the CC0 Public Domain Dedication along with this
--- software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>. 
+-- software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 
 -- User Options defaults (for minetest.conf)
@@ -80,7 +82,7 @@ local embankment = "default:gravel"
 -- If this is changed, old reference marks won't be able to be removed by tunnelmaker tool.
 local reference_marks = "default:stone_block"
 
--- Time that reference marks are removed when this command enabled by the user. 
+-- Time that reference marks are removed when this command enabled by the user.
 local remove_refs_enable_time = 120
 
 -- Material for bike paths.
@@ -374,7 +376,7 @@ local call_on_dignodes = function(pos, node, user)
 	end
 end
 
--- Lookup table to map direction to appropriate rotation for angled_stair_left nodes. 
+-- Lookup table to map direction to appropriate rotation for angled_stair_left nodes.
 local astairs_lu = {
 	[-1] ={[2]=1,[6]=0,[10]=3,[14]=2},  -- down
 	[1] = {[2]=3,[6]=2,[10]=1,[14]=0}  -- up
@@ -389,18 +391,18 @@ region = {
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				if not (node.name == "air" or is_light(node.name) or string.match(node.name, "dtrack")) then
 					minetest.set_node(pos, {name = "air"})
 					call_on_dignodes(pos, node, user)
 				end
-			end
+			--end
 		end,
 	[2] =  -- Ceiling.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if string.match(node.name, "water") then  -- Always line water with glass.
 					minetest.set_node(pos, {name = glass_walls})
@@ -429,21 +431,29 @@ region = {
 					for i = y, clear_trees_max do
 						local posi = vector.add(pointed_thing.under, {x=x, y=i, z=z})
 						local nodei = minetest.get_node(posi)
-						if nodei.name == "default:snow" or is_flammable(nodei.name) then
-							minetest.set_node(posi, {name = "air"})
-							call_on_dignodes(posi, nodei, user)
-						elseif namei ~= "air" then
+						-- Add check for protection above tunnel.
+						if ok_to_tunnel(user, posi, nodei.name) then
+							if nodei.name == "default:snow" or is_flammable(nodei.name) then
+								minetest.set_node(posi, {name = "air"})
+								call_on_dignodes(posi, nodei, user)
+							elseif nodei.name ~= "air" then
+								break
+							end
+						else
+							user_config[pname].clear_trees = 0  -- Disable clear_trees on protection error.
+							minetest.chat_send_player(pname, "Tunnelmaker can't clear trees—area above protected.")
+							minetest.log("action", pname.." tried to use tunnelmaker to clear trees at protected position "..minetest.pos_to_string(pointed_thing.under))
 							break
 						end
 					end
 				end
-			end
+			--end
 		end,
 	[3] =  -- Side walls.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if string.match(node.name, "water") then
 					minetest.set_node(pos, {name = glass_walls})  -- Always line water with glass.
@@ -454,24 +464,24 @@ region = {
 						call_on_dignodes(pos, node, user)
 					end
 				end
-			end
+			--end
 		end,
 	[4] =  -- Temporary endcaps.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				if string.match(node.name, "water") then  -- Place temporary endcap if water.
 					minetest.set_node(pos, {name = glass_walls})
 					call_on_dignodes(pos, node, user)
 				end
-			end
+			--end
 		end,
 	[5] =  -- Reference markers.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				-- Figure out what replacement material should be.
 				local rep_mat
@@ -491,13 +501,13 @@ region = {
 						call_on_dignodes(pos, node, user)
 					end
 				end
-			end
+			--end
 		end,
 	[6] =  -- Embankment area.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_floors then  -- Going to set all.
 					if user_config[pname].add_embankment then
@@ -513,13 +523,13 @@ region = {
 						call_on_dignodes(pos, node, user)
 					end
 				end
-			end
+			--end
 		end,
 	[7] =  -- Wide floors. (starting to refine)
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_floors and user_config[pname].add_wide_floors then
 					local pos0 = vector.add(pos, {x=0, y=-1, z=0})
@@ -536,16 +546,16 @@ region = {
 						call_on_dignodes(pos, node, user)
 					end
 				end
-			end
+			--end
 		end,
 	[8] =  -- Underfloor, only used directly for slope up and slope down where embankment or brace is always needed.
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				minetest.set_node(pos, {name = lining_material(user, pos)})
 				call_on_dignodes(pos, node, user)
-			end
+			--end
 		end,
 	[10] =  -- Bike slope down narrow (air or angled slab).
 		function(x, y, z, dir, user, pointed_thing)
@@ -564,7 +574,7 @@ region = {
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps and angledstairs_exists then
 					if is_desert(user, pos) then
@@ -577,13 +587,13 @@ region = {
 				else
 					region[1](x, y, z, dir, user, pointed_thing)
 				end
-			end
+			--end
 		end,
 	[12] =  -- Bike slope up or down narrow (slab or angled stair).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps then
 					if angledstairs_exists and math.fmod(dir.horiz, 4) == 2 then  -- diagonal slope
@@ -606,13 +616,13 @@ region = {
 				else
 					region[1](x, y, z, dir, user, pointed_thing)
 				end
-			end
+			--end
 		end,
 	[13] =  -- Bike slope wide up or down (slabs).
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				if user_config[pname].add_bike_ramps and user_config[pname].add_wide_floors then
 					if is_desert(user, pos) then
@@ -625,7 +635,7 @@ region = {
 				else
 					region[1](x, y, z, dir, user, pointed_thing)
 				end
-			end
+			--end
 		end,
 	[19] =  -- Bike slopes. Don't remove bike slopes placed by previous down slope.
 		function(x, y, z, dir, user, pointed_thing)
@@ -668,7 +678,7 @@ region = {
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local node = minetest.get_node(pos)
-			if ok_to_tunnel(user, pos, node.name) then
+			--if ok_to_tunnel(user, pos, node.name) then
 				local pname = user:get_player_name()
 				local pos1 = vector.add(pos, {x=0, y=1, z=0})
 				local name1 = minetest.get_node(pos1).name
@@ -679,7 +689,7 @@ region = {
 					minetest.set_node(pos, {name = lining_material(user, pos)})
 					call_on_dignodes(pos, node, user)
 				end
-			end
+			--end
 		end,
 	[40] =  -- Endcap or null (based on arches).
 		function(x, y, z, dir, user, pointed_thing)
@@ -692,7 +702,7 @@ region = {
 		function(x, y, z, dir, user, pointed_thing)
 			local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
 			local name = minetest.get_node(pos).name
-			if ok_to_tunnel(user, pos, name) then
+			--if ok_to_tunnel(user, pos, name) then
 				region[1](x, y, z, dir, user, pointed_thing)
 				name = minetest.get_node(pos).name  -- Should now be air, unless undiggable.
 				if add_lighting and name == "air" then
@@ -712,7 +722,7 @@ region = {
 						end
 					end
 				end
-			end
+			--end
 		end,
 	[86] =  -- Underfloor under embankment.
 		function(x, y, z, dir, user, pointed_thing)
@@ -767,6 +777,36 @@ local run_list = function(dir_list, f, r, dir, user, pointed_thing)
 			region[v[2][i]](newpos[1], i-3, newpos[2], dir, user, pointed_thing)
 		end
 	end
+end
+
+-- Test that region allows digging.
+local region_test = function(x, y, z, dir, user, pointed_thing)
+	local pos = vector.add(pointed_thing.under, {x=x, y=y, z=z})
+	local node = minetest.get_node(pos)
+	return ok_to_tunnel(user, pos, node.name)
+end
+
+-- Check all dig locations before doing any digging.
+local run_test = function(dir_list, f, r, dir, user, pointed_thing)
+	local pname = user:get_player_name()
+	local height = user_config[pname].height
+	local ok = true
+	for _,v in ipairs(dir_list) do
+		local newpos = fliprot(v[1], f, r)
+		for i = 9, 6, -1 do  -- ceiling
+			ok = region_test(newpos[1], i + height - 7, newpos[2], dir, user, pointed_thing)
+			if ok == false then return false end  -- not ok to dig
+		end
+		for y = (height - 2), 2, -1 do  -- variable mid region repeats element 5
+			ok = region_test(newpos[1], y, newpos[2], dir, user, pointed_thing)
+			if ok == false then return false end  -- not ok to dig
+		end
+		for i = 4, 1, -1 do  -- floor
+			ok = region_test(newpos[1], i-3, newpos[2], dir, user, pointed_thing)
+			if ok == false then return false end  -- not ok to dig
+		end
+	end
+	return true  -- everything ok to dig
 end
 
 -- Dig tunnel based on direction given.
@@ -883,7 +923,15 @@ local dig_tunnel = function(cdir, user, pointed_thing)
 	local dig_list = dig_patterns[dig_lookup[cdir][1]]
 	local flip = dig_lookup[cdir][2]
 	local rotation = dig_lookup[cdir][3]
-	run_list(dig_list, flip, rotation, dir, user, pointed_thing)
+	-- Check that all nodes are ok to dig before digging any of them.
+	-- If you want these translated, contribute the translations.
+	if run_test(dig_list, flip, rotation, dir, user, pointed_thing) then
+		run_list(dig_list, flip, rotation, dir, user, pointed_thing)
+		minetest.log("action", user:get_player_name().." uses tunnelmaker at "..minetest.pos_to_string(pointed_thing.under))
+	else
+		minetest.chat_send_player(user:get_player_name(), "Tunnelmaker can't dig—area protected.")
+		minetest.log("action", user:get_player_name().." tried to use tunnelmaker at protected position "..minetest.pos_to_string(pointed_thing.under))
+	end
 end
 
 -- Display User Options menu.
@@ -1095,7 +1143,7 @@ local remove_refs = function(player)
 	local ppos = player:get_pos()
 	local refpos = minetest.find_node_near(ppos, 1, reference_marks)
 	if refpos then
-		if not minetest.is_protected(refpos, player) then
+		if not minetest.is_protected(refpos, player:get_player_name()) then
 			local meta = minetest.get_meta(refpos)
 			local rep_mat = meta:get("replace_with")
 			if rep_mat and string.len(rep_mat) > 0 then
