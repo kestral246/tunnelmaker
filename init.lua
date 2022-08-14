@@ -1161,3 +1161,5 @@ minetest.register_globalstep(function(dtime)
 		end
 	end
 end)
+
+tunnelmaker.dig_tunnel = dig_tunnel
