@@ -6,6 +6,10 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.2.0 - 2022-08-15
+--   Pull request from rlars: Allow access to dig_tunnel for other mods.
+--   Validate tunnel_lights setting, and if invalid use default:torch instead.
+
 -- Version 2.1.0 - 2021-07-02
 --   Perform protection checks on all nodes before digging tunnel.
 --   Perform protection checks during clear tree cover.
@@ -134,15 +138,18 @@ local user_config = {}
 
 -- Adjust light spacing and deal with multi-orientation lights.
 minetest.register_on_mods_loaded(function()
-	if minetest.registered_nodes[lighting] then
-		if minetest.registered_nodes[lighting].light_source > 13 then
-			lighting_search_radius = 2
-		end
-		if minetest.registered_nodes[lighting].drop then
-			multi_orient = true
-			base_lighting = minetest.registered_nodes[lighting].drop
-			-- minetest.debug("base = "..base_lighting)  -- debug
-		end
+	if minetest.registered_nodes[lighting] == nil then
+		minetest.log("warning", "Tunnelmaker: Setting for tunnel_lights ("..lighting..") invalid. Using default:torch instead.")
+		lighting = "default:torch"
+		lighting_p2 = 0
+	end
+	if minetest.registered_nodes[lighting].light_source > 13 then
+		lighting_search_radius = 2
+	end
+	if minetest.registered_nodes[lighting].drop then
+		multi_orient = true
+		base_lighting = minetest.registered_nodes[lighting].drop
+		-- minetest.debug("base = "..base_lighting)  -- debug
 	end
 end)
 
