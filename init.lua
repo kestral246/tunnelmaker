@@ -1161,3 +1161,6 @@ minetest.register_globalstep(function(dtime)
 		end
 	end
 end)
+
+-- Allow other mods to use the dig_tunnel function.
+tunnelmaker.dig_tunnel = dig_tunnel
