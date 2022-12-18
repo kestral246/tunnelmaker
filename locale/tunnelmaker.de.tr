@@ -1,0 +1,15 @@
+# textdomain: tunnelmaker
+# Translated by xenonca
+Tunnelmaker - User Options=Tunnelmaker - Optionen
+General purpose mode=Genereller-Zweck Modus
+Advanced trains mode=Advtrains Modus
+Bike path mode=Radweg Modus
+Wide paths / lined tunnels=Breite Wege/Ausgekleidete Tunnels
+Continuous up/down digging=Fortlaufendes Graben nach Oben/Unten
+Clear tree cover=Baumwuchs Entferner
+Remove reference nodes=Referenzblöcke entfernen
+Lock desert mode to:=Wüsten Modus Sperrung:
+Desert=Wüste
+Non-desert=Nicht Wüste
+Exit=Schließen
+Automatically disabled after 2 min.=Wird nach 2 min automatische deaktiviert.
