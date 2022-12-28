@@ -37,7 +37,7 @@ Features *(Does way more than just dig tunnels!)*
 - Requires "tunneling" privilege, and checks protections before digging.
 - No crafting recipe, so needs to be given to player.
 - Works in both creative and survival modes, but tunneling does not place any nodes into user's inventory.
-- Supports client-side translation files. Currently only have Russian and my attempt at a French translation. **Other languages will be gratefully accepted.** Reference template file is available in locale directory.
+- Supports client-side translation files. Currently supports German **(recently provided by xenonca),** Russian (by Mikola), and my attempt at French. **Other languages will be gratefully accepted.** (Reference template file is available in locale directory.)
 
 ![Bike path up mountain](images/bike_path.png "Bike path up mountain")
 
