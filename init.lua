@@ -6,14 +6,13 @@
 -- by David G (kestral246@gmail.com)
 -- and by Mikola
 
+-- Version 2.2.1 - 2022-12-28
+--   Add German translations from xenonca.
+--   Another minor remove references issue.
+
 -- Version 2.2.0 - 2022-08-15
 --   Pull request from rlars: Allow access to dig_tunnel for other mods.
 --   Validate tunnel_lights setting, and if invalid use default:torch instead.
-
--- Version 2.1.0 - 2021-07-02
---   Perform protection checks on all nodes before digging tunnel.
---   Perform protection checks during clear tree cover.
---   Fix protection check while removing reference nodes.
 
 -- Controls for operation
 -------------------------
@@ -1154,7 +1153,12 @@ local remove_refs = function(player)
 			local meta = minetest.get_meta(refpos)
 			local rep_mat = meta:get("replace_with")
 			if rep_mat and string.len(rep_mat) > 0 then
-				minetest.set_node(refpos, {name = rep_mat, param2 = 42})
+				-- only advtrain embankment should get 42 param2
+				if rep_mat == embankment then
+					minetest.set_node(refpos, {name = rep_mat, param2 = 42})
+				else
+					minetest.set_node(refpos, {name = rep_mat, param2 = 0})
+				end
 			end
 		end
 	end
